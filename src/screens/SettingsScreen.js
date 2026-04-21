@@ -7,7 +7,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getCategories, deleteCategory, addSubCategory,
-  getSubCategories, deleteSubCategory, getAccounts, factoryReset
+  getSubCategories, deleteSubCategory, getAccounts, factoryReset, updateAccountBalance
 } from '../db/database';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
@@ -54,6 +54,7 @@ export default function SettingsScreen() {
   const [walletColor, setWalletColor] = useState('#0ea5e9');
   const [initialBalance, setInitialBalance] = useState('');
   const [excludeFromTotal, setExcludeFromTotal] = useState(false);
+  const [editWalletId, setEditWalletId] = useState(null);
 
   const [catName, setCatName] = useState('');
   const [catType, setCatType] = useState('expense');
@@ -148,24 +149,56 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleAddWallet = async () => {
+  const handleAddOrUpdateWallet = async () => {
     if (!walletName.trim()) return showStatus('Error', 'Nama dompet wajib diisi.', 'error');
     const bal = parseInt(initialBalance.replace(/[^0-9]/g, ''), 10) || 0;
     const isExcluded = excludeFromTotal || walletType === 'investment' || walletType === 'credit' ? 1 : 0;
     try {
-      await db.runAsync(
-        'INSERT INTO accounts (name, type, color, initial_balance, current_balance, is_active, exclude_from_total) VALUES (?, ?, ?, ?, ?, 1, ?)',
-        [walletName.trim(), walletType, walletColor, bal, bal, isExcluded]
-      );
-      showStatus('Berhasil', `Dompet "${walletName}" ditambahkan!`, 'success');
+      if (editWalletId) {
+        await db.runAsync(
+          'UPDATE accounts SET name = ?, type = ?, color = ?, initial_balance = ?, exclude_from_total = ? WHERE id = ?',
+          [walletName.trim(), walletType, walletColor, bal, isExcluded, editWalletId]
+        );
+        await updateAccountBalance(db, editWalletId);
+        showStatus('Berhasil', `Dompet "${walletName}" diperbarui!`, 'success');
+        setEditWalletId(null);
+      } else {
+        await db.runAsync(
+          'INSERT INTO accounts (name, type, color, initial_balance, current_balance, is_active, exclude_from_total) VALUES (?, ?, ?, ?, ?, 1, ?)',
+          [walletName.trim(), walletType, walletColor, bal, bal, isExcluded]
+        );
+        showStatus('Berhasil', `Dompet "${walletName}" ditambahkan!`, 'success');
+      }
       setWalletName('');
       setInitialBalance('');
       setExcludeFromTotal(false);
       loadData();
     } catch (e) {
-      console.error('handleAddWallet error:', e);
-      showStatus('Gagal Menambah', 'Dompet tidak dapat ditambahkan. Silakan coba lagi.', 'error');
+      console.error('handleAddOrUpdateWallet error:', e);
+      showStatus('Gagal', 'Sistem tidak dapat menyimpan dompet. Silakan coba lagi.', 'error');
     }
+  };
+
+  const cancelEditWallet = () => {
+    setEditWalletId(null);
+    setWalletName('');
+    setInitialBalance('');
+    setExcludeFromTotal(false);
+  };
+
+  const handleManageWallet = (acc) => {
+    Alert.alert('Kelola Dompet', `Apa yang ingin Anda lakukan dengan "${acc.name}"?`, [
+      { text: 'Edit Dompet', onPress: () => {
+          setEditWalletId(acc.id);
+          setWalletName(acc.name);
+          setWalletType(acc.type);
+          setWalletColor(acc.color);
+          setInitialBalance('Rp ' + (acc.initial_balance || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+          setExcludeFromTotal(acc.exclude_from_total === 1);
+      }},
+      { text: 'Hapus / Nonaktifkan', style: 'destructive', onPress: () => handleDeleteAccount(acc) },
+      { text: 'Batal', style: 'cancel' }
+    ]);
   };
 
   const handleDeleteAccount = (acc) => {
@@ -275,7 +308,7 @@ export default function SettingsScreen() {
       {/* WALLET TAB */}
       {activeTab === 'wallet' && (
         <>
-          <Section title="Tambah Dompet / Rekening" subtitle="Tambahkan rekening bank, e-wallet, atau kas baru.">
+          <Section title={editWalletId ? "Edit Dompet" : "Tambah Dompet Baru"} subtitle={editWalletId ? "Perubahan nominal awal akan mengkalkulasi ulang saldo." : "Pilih tipe dan warna untuk identifikasi dompet."}>
             <TextInput
               style={styles.input}
               placeholder="Nama dompet (cth: BCA Tabungan)"
@@ -331,17 +364,25 @@ export default function SettingsScreen() {
                 thumbColor={excludeFromTotal ? '#fff' : '#4a5568'}
               />
             </View>
-            <TouchableOpacity style={styles.btnPrimary} onPress={handleAddWallet}>
-              <Ionicons name="add-circle" size={18} color="#fff" />
-              <Text style={styles.btnPrimaryText}>Simpan Dompet Baru</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              {editWalletId && (
+                <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: '#1a2540', flex: 1 }]} onPress={cancelEditWallet}>
+                  <Text style={[styles.btnPrimaryText, { color: '#ff4d6d' }]}>Batal</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[styles.btnPrimary, { flex: 2 }]} onPress={handleAddOrUpdateWallet}>
+                <Ionicons name={editWalletId ? 'save' : 'add-circle'} size={18} color="#fff" />
+                <Text style={styles.btnPrimaryText}>{editWalletId ? 'Update Dompet' : 'Simpan Dompet Baru'}</Text>
+              </TouchableOpacity>
+            </View>
           </Section>
 
-          <Section title="Dompet Aktif" subtitle="Ketuk tahan untuk menonaktifkan.">
+          <Section title="Dompet Aktif" subtitle="Ketuk untuk mengedit atau menghapus.">
             {accounts.map(acc => (
               <TouchableOpacity
                 key={acc.id}
                 style={styles.accItem}
+                onPress={() => handleManageWallet(acc)}
                 onLongPress={() => handleDeleteAccount(acc)}
               >
                 <View style={[styles.accDot, { backgroundColor: acc.color }]} />

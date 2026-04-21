@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from '@react-navigation/native';
-import { documentDirectory, writeAsStringAsync } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
@@ -82,8 +82,8 @@ export default function MutasiScreen({ navigation }) {
     }, 300);
   };
 
-  const totalIncome   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpense  = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
   const handleEdit = (item) => {
     navigation.navigate('Tambah Transaksi', { editTx: item });
@@ -144,13 +144,22 @@ export default function MutasiScreen({ navigation }) {
         return `${tgl},${tipe},${nominal},${fee},${kat},${subkat},${dariDompet},${keDompet},${catatan}`;
       }).join('\n');
 
-      const csvContent = header + rows;
+      // UTF-8 BOM agar Excel membaca karakter Indonesia dengan benar
+      const BOM = '﻿';
+      const csvContent = BOM + header + rows;
       const now = new Date();
-      const fileName = `mutasi_${periodLabel.replace(/ /g, '_')}_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
-      const fileUri = documentDirectory + fileName;
+      // Gunakan hanya karakter aman untuk nama file
+      const safePeriod = periodLabel.replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `mutasi_${safePeriod}_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.csv`;
+      // Fallback ke documentDirectory jika cacheDirectory null
+      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+      if (!baseDir) throw new Error('Direktori penyimpanan tidak tersedia.');
+      const fileUri = baseDir + fileName;
 
       try {
-        await writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' });
+        await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
       } catch (writeErr) {
         console.error('CSV write error:', writeErr);
         Alert.alert(
@@ -189,7 +198,7 @@ export default function MutasiScreen({ navigation }) {
       console.error('handleExportCSV error:', e);
       Alert.alert(
         'Gagal Export',
-        'Terjadi kesalahan tidak terduga saat membuat laporan. Silakan coba lagi.',
+        `Terjadi kesalahan tidak terduga saat membuat laporan.\n${e?.message || ''}\nSilakan coba lagi.`,
         [{ text: 'OK' }]
       );
     } finally {

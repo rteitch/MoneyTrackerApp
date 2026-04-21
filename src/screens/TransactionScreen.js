@@ -113,12 +113,7 @@ export default function TransactionScreen({ navigation, route }) {
             setUseCustomDate(false);
             setCustomDateStr('');
 
-            if (type !== 'transfer') {
-              const cats = await getCategories(db, type);
-              if (cancelled) return;
-              setCategories(cats);
-              setSubCategories([]);
-            }
+            // Note: we fetch categories separately via useEffect so it doesn't reset amount on type change
           }
         } catch (e) {
           console.error('TransactionScreen load error:', e);
@@ -127,8 +122,23 @@ export default function TransactionScreen({ navigation, route }) {
       }
       load();
       return () => { cancelled = true; };
-    }, [db, editTx, isEditMode, preselectedAccountId, type])
+    }, [db, editTx, isEditMode, preselectedAccountId])
   );
+
+  // Terpisah agar tidak me-reset nominal/isian form ketika tipe transaksi diganti
+  React.useEffect(() => {
+    let cancelled = false;
+    async function fetchCats() {
+      if (type !== 'transfer') {
+        const cats = await getCategories(db, type);
+        if (!cancelled) setCategories(cats);
+      } else {
+        if (!cancelled) setCategories([]);
+      }
+    }
+    fetchCats();
+    return () => { cancelled = true; };
+  }, [type, db]);
 
   const handleTypeChange = (newType) => {
     setType(newType);
@@ -403,16 +413,30 @@ export default function TransactionScreen({ navigation, route }) {
         {isEditMode && (
           <Text style={styles.editModeLabel}>Mode Edit Transaksi</Text>
         )}
-        <TouchableOpacity
-          style={[styles.saveBtn, { backgroundColor: isEditMode ? '#7c6aff' : activeType.color }, saving && { opacity: 0.6 }]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          <Ionicons name={isEditMode ? 'create' : 'checkmark-circle'} size={20} color="#fff" />
-          <Text style={styles.saveBtnText}>
-            {saving ? (isEditMode ? 'Memperbarui...' : 'Menyimpan...') : (isEditMode ? 'Update Transaksi' : 'Simpan Transaksi')}
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {isEditMode && (
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: '#1a2540', flex: 1 }]}
+              onPress={() => {
+                navigation.setParams({ editTx: undefined });
+                setType('expense');
+              }}
+            >
+              <Text style={[styles.saveBtnText, { color: '#ff4d6d' }]}>Batal</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[styles.saveBtn, { backgroundColor: isEditMode ? '#7c6aff' : activeType.color, flex: 2 }, saving && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            <Ionicons name={isEditMode ? 'create' : 'checkmark-circle'} size={20} color="#fff" />
+            <Text style={styles.saveBtnText}>
+              {saving ? (isEditMode ? 'Memperbarui...' : 'Menyimpan...') : (isEditMode ? 'Update' : 'Simpan')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <StatusModal
