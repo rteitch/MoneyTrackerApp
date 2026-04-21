@@ -151,7 +151,21 @@ export default function MutasiScreen({ navigation }) {
       // Gunakan hanya karakter aman untuk nama file
       const safePeriod = periodLabel.replace(/[^a-zA-Z0-9]/g, '_');
       const fileName = `mutasi_${safePeriod}_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.csv`;
-      // Fallback ke documentDirectory jika cacheDirectory null
+      if (Platform.OS === 'web') {
+        // Web context: Use Blob and anchor tag to trigger browser download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      // Native context: FileSystem + Sharing
       const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
       if (!baseDir) throw new Error('Direktori penyimpanan tidak tersedia.');
       const fileUri = baseDir + fileName;
@@ -187,7 +201,6 @@ export default function MutasiScreen({ navigation }) {
         }
       } catch (shareErr) {
         console.error('Share error:', shareErr);
-        // File sudah tersimpan, hanya sharing yang gagal — informasikan lokasi file
         Alert.alert(
           'File Tersimpan',
           `Laporan berhasil dibuat namun tidak dapat dibagikan langsung.\nFile tersimpan di:\n${fileUri}`,
