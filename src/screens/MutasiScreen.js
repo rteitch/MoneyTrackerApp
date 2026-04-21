@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from '@react-navigation/native';
-import * as FileSystem from 'expo-file-system';
+import { documentDirectory, writeAsStringAsync } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
@@ -124,15 +124,6 @@ export default function MutasiScreen({ navigation }) {
       return;
     }
 
-    if (!FileSystem.documentDirectory) {
-      Alert.alert(
-        'Penyimpanan Tidak Tersedia',
-        'Perangkat tidak mendukung penyimpanan file. Coba perbarui aplikasi.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     try {
       setExporting(true);
       // Yield thread so UI can render ActivityIndicator before heavy mapping tasks.
@@ -156,10 +147,10 @@ export default function MutasiScreen({ navigation }) {
       const csvContent = header + rows;
       const now = new Date();
       const fileName = `mutasi_${periodLabel.replace(/ /g, '_')}_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
-      const fileUri = FileSystem.documentDirectory + fileName;
+      const fileUri = documentDirectory + fileName;
 
       try {
-        await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+        await writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' });
       } catch (writeErr) {
         console.error('CSV write error:', writeErr);
         Alert.alert(
