@@ -2,16 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Text } from 'react-native';
 import { formatRupiah, formatRupiahFull } from '../utils/formatting';
 
-export default function CountUp({ value, style, isFull = false }) {
+export default function CountUp({ value = 0, style, isFull = false }) {
+  const numericValue = Number(value) || 0;
   const [displayValue, setDisplayValue] = useState(0);
+  const currentDisplayValue = useRef(0);
   const startTime = useRef(Date.now());
-  const duration = 1000; // ms
+  const duration = 1200; // sedikit diperlama agar lebih dramatis
   const initialValue = useRef(0);
-  const targetValue = useRef(value);
+  const targetValue = useRef(numericValue);
 
   useEffect(() => {
-    initialValue.current = displayValue;
-    targetValue.current = value;
+    initialValue.current = currentDisplayValue.current;
+    targetValue.current = numericValue;
     startTime.current = Date.now();
     
     let animationFrame;
@@ -23,6 +25,7 @@ export default function CountUp({ value, style, isFull = false }) {
       const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
       
       const current = Math.floor(initialValue.current + (targetValue.current - initialValue.current) * easeProgress);
+      currentDisplayValue.current = current;
       setDisplayValue(current);
 
       if (progress < 1) {
@@ -32,7 +35,7 @@ export default function CountUp({ value, style, isFull = false }) {
 
     animationFrame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationFrame);
-  }, [value]);
+  }, [numericValue]);
 
   return (
     <Text style={style}>

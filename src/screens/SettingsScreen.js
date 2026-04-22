@@ -12,8 +12,10 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import StatusModal from '../components/StatusModal';
 import { useAppActions, useAppContext } from '../context/AppContext';
 import {
@@ -313,11 +315,13 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <ScrollView
-      style={styles.root}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 80 }}
-      refreshControl={
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle={colors.bgPrimary === '#ffffff' ? 'dark-content' : 'light-content'} backgroundColor={colors.bgPrimary} />
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 80 }}
+        refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
@@ -639,12 +643,13 @@ export default function SettingsScreen() {
         message={statusModal.message}
         type={statusModal.type}
       />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const makeStyles = (colors) => StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: colors.bgPrimary },
   pageTitle: { fontSize: 20, fontWeight: '800', marginLeft: 20, marginTop: 16, marginBottom: 16, color: colors.textPrimary },
 
   tabs: {

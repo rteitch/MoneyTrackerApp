@@ -16,9 +16,9 @@ import {
   TouchableOpacity,
   View,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import BottomSheetModal from "../components/BottomSheetModal";
 import TransactionCard from "../components/TransactionCard";
@@ -64,6 +64,12 @@ export default function MutasiScreen({ navigation, route }) {
   const [loadError, setLoadError] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  const pageRef = useRef(0);
+  const hasMoreRef = useRef(true);
+  const loadingMoreRef = useRef(false);
+  const LIMIT = 20;
   
   // UI State
   const [isPeriodExpanded, setIsPeriodExpanded] = useState(false);
@@ -75,29 +81,55 @@ export default function MutasiScreen({ navigation, route }) {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [txToDelete, setTxToDelete] = useState(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (reset = true) => {
     try {
-      setLoading(true);
+      if (reset) {
+        setLoading(true);
+        pageRef.current = 0;
+        hasMoreRef.current = true;
+      } else {
+        if (!hasMoreRef.current || loadingMoreRef.current) return;
+        setLoadingMore(true);
+        loadingMoreRef.current = true;
+      }
       setLoadError(false);
+      
+      const currentOffset = pageRef.current * LIMIT;
       const bounds = getDateFilterBoundary(periodFilter);
+      
       const [txs, accs] = await Promise.all([
-        getAllTransactions(db, searchQuery, typeFilter, bounds, accountFilter),
-        getAccounts(db),
+        getAllTransactions(db, searchQuery, typeFilter, bounds, accountFilter, LIMIT, currentOffset),
+        reset ? getAccounts(db) : Promise.resolve([]),
       ]);
-      setTransactions(txs);
-      setAccounts(accs);
+      
+      if (reset) {
+        setTransactions(txs);
+      } else {
+        setTransactions(prev => {
+          const existingIds = new Set(prev.map(t => t.id));
+          const newTxs = txs.filter(t => !existingIds.has(t.id));
+          return [...prev, ...newTxs];
+        });
+      }
+      
+      hasMoreRef.current = txs.length === LIMIT;
+      if (txs.length > 0) pageRef.current += 1;
+      
+      if (reset && accs.length > 0) setAccounts(accs);
     } catch (e) {
       console.error("MutasiScreen loadData error:", e);
       setLoadError(true);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
       setRefreshing(false);
     }
   }, [db, searchQuery, typeFilter, periodFilter, accountFilter]);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      loadData(true);
     }, [loadData])
   );
 
@@ -114,7 +146,7 @@ export default function MutasiScreen({ navigation, route }) {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    loadData(true);
   };
 
   const resetAllFilters = () => {
@@ -144,7 +176,6 @@ export default function MutasiScreen({ navigation, route }) {
     }
 
     try {
-      setExporting(true);
       await new Promise((r) => setTimeout(r, 50));
 
       const periodLabel =
@@ -238,15 +269,15 @@ export default function MutasiScreen({ navigation, route }) {
           { text: "OK" },
         ]);
       }
-    } catch (e) {
-      console.error("Export error:", e);
+    } catch (_e) {
+      console.error("Export error:", _e);
       Alert.alert(
         "Gagal Export",
-        `Terjadi kesalahan saat membuat laporan.\n\n${e?.message || "Silakan coba lagi."}`,
+        `Terjadi kesalahan saat membuat laporan.\n\n${_e?.message || "Silakan coba lagi."}`,
         [{ text: "OK" }],
       );
     } finally {
-      setExporting(false);
+      // do nothing
     }
   };
   const handleDeletePress = (item) => {
@@ -258,7 +289,7 @@ export default function MutasiScreen({ navigation, route }) {
   const executeDelete = async () => {
     if (!txToDelete) return;
     try {
-      await deleteTransaction(db, txToDelete.id, txToDelete);
+      await deleteTransaction(db, txToDelete.id);
       setDeleteModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       loadData();
@@ -400,8 +431,9 @@ export default function MutasiScreen({ navigation, route }) {
           </View>
         </View>
       </View>
+      <Text style={styles.listHint}>💡 Ketuk transaksi untuk edit, tahan untuk hapus</Text>
     </View>
-  ), [colors, styles, transactions, accounts, searchQuery, typeFilter, periodFilter, accountFilter, isAccountExpanded, isPeriodExpanded, totalIncome, totalExpense]);
+  ), [colors, styles, accounts, searchQuery, typeFilter, periodFilter, accountFilter, isAccountExpanded, isPeriodExpanded, totalIncome, totalExpense, handleExportCSV, isFiltered]);
 
   const groupedTransactions = useMemo(() => {
     const groups = {};
@@ -426,6 +458,15 @@ export default function MutasiScreen({ navigation, route }) {
         data={groupedTransactions}
         keyExtractor={(item) => item.date}
         ListHeaderComponent={renderHeader}
+        onEndReached={() => loadData(false)}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ padding: 20 }}>
+              <ActivityIndicator size="small" color={colors.brand} />
+            </View>
+          ) : null
+        }
         renderItem={({ item }) => (
           <View key={item.date}>
             <View style={styles.dateHeader}>
@@ -436,13 +477,12 @@ export default function MutasiScreen({ navigation, route }) {
               </View>
             </View>
             {item.data.map(tx => (
-              <TransactionCard 
+              <TransactionCard
                 key={tx.id}
-                item={tx} 
-                onPress={(t) => navigation.navigate("Transaction", { editTx: t })}
+                item={tx}
+                onPress={(t) => navigation.navigate("Tambah Transaksi", { editTx: t, source: 'Mutasi' })}
                 onLongPress={handleDeletePress}
-              />
-            ))}
+              />            ))}
           </View>
         )}
         ListEmptyComponent={
@@ -548,9 +588,10 @@ const makeStyles = (colors) => StyleSheet.create({
   summaryLabel: { fontSize: 10, fontWeight: '700', marginBottom: 4, color: colors.textMuted },
   summaryValue: { fontSize: 14, fontWeight: '800' },
   summaryDivider: { width: 1, height: 24, marginHorizontal: 10, backgroundColor: colors.border },
-  
-  dateHeader: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+
+  listHint: { fontSize: 11, fontStyle: 'italic', textAlign: 'center', marginBottom: 12, color: colors.textMuted },
+
+  dateHeader: {    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12, marginTop: 8,
     backgroundColor: colors.bgPrimary
   },

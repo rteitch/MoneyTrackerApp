@@ -167,9 +167,10 @@ export function getDateFilterBoundary(filter) {
     start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   } else if (filter === 'week') {
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    start = new Date(now.setDate(diff));
+    const d = new Date();
+    const day = d.getDay();
+    const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1);
+    start = new Date(d.getFullYear(), d.getMonth(), diffToMonday);
     start.setHours(0,0,0,0);
   } else if (filter === 'month') {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -346,7 +347,7 @@ export async function updateTransaction(db, transactionId, params, oldTx) {
   }
 }
 
-export async function getAllTransactions(db, searchQuery = '', filterType = 'all', bounds, accountId = null) {
+export async function getAllTransactions(db, searchQuery = '', filterType = 'all', bounds, accountId = null, limit = 0, offset = 0) {
   const { start, end } = bounds || { start: '1970-01-01T00:00:00.000Z', end: '2100-01-01T00:00:00.000Z' };
   
   let query = `
@@ -377,6 +378,11 @@ export async function getAllTransactions(db, searchQuery = '', filterType = 'all
   }
 
   query += ' ORDER BY t.date DESC';
+  
+  if (limit > 0) {
+    query += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+  }
   
   return await db.getAllAsync(query, params);
 }

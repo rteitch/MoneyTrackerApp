@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import {
@@ -178,7 +177,7 @@ function MonthComparisonCard({ data, colors, styles }) {
 
 // ─── Score Ring ───────────────────────────────────────────────────────────────
 function ScoreRing({ score, status, colors }) {
-  const color = status === 'sehat' ? '#00c896' : status === 'kritis' ? '#ff4d6d' : '#f59e0b';
+  const color = status === 'sehat' ? colors.income : status === 'kritis' ? colors.expense : colors.warning;
   return (
     <View style={[scoreRingStyles.ring, { borderColor: color, backgroundColor: colors.bgDeep }]}>
       <Text style={[scoreRingStyles.score, { color }]}>{score}</Text>
@@ -267,39 +266,40 @@ const makeStyles = (colors) => StyleSheet.create({
   tapHint: { fontSize: 11, marginBottom: 14, marginTop: 6, fontStyle: 'italic' },
   breakdownItem: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, borderBottomWidth: 1,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border,
     gap: 10,
   },
-  breakdownItemActive: { borderRadius: 10, paddingHorizontal: 6, marginHorizontal: -6 },
+  breakdownItemActive: { borderRadius: 10, paddingHorizontal: 6, marginHorizontal: -6, backgroundColor: colors.bgElevated, borderBottomColor: 'transparent' },
   catRankBadge: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   catRank: { fontSize: 11, fontWeight: '800' },
   breakdownMid: { flex: 1 },
   breakdownName: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  barTrack: { height: 4, borderRadius: 2 },
+  barTrack: { height: 4, borderRadius: 2, backgroundColor: colors.border },
   barFill: { height: 4, borderRadius: 2 },
   breakdownRight: { alignItems: 'flex-end', minWidth: 80 },
   breakdownAmt: { fontSize: 13, fontWeight: '700' },
-  breakdownPct: { fontSize: 11, marginTop: 2 },
+  breakdownPct: { fontSize: 11, marginTop: 2, color: colors.textMuted },
 
   // Sub-breakdown (drill-down)
   subBreakdown: {
     borderRadius: 10,
     padding: 12, marginBottom: 4, marginLeft: 36,
     borderLeftWidth: 2, marginTop: -1,
+    backgroundColor: colors.bgElevated,
   },
-  subLoading: { fontSize: 12, textAlign: 'center', paddingVertical: 10 },
-  subEmpty: { fontSize: 12, textAlign: 'center', paddingVertical: 10, fontStyle: 'italic' },
+  subLoading: { fontSize: 12, textAlign: 'center', paddingVertical: 10, color: colors.textMuted },
+  subEmpty: { fontSize: 12, textAlign: 'center', paddingVertical: 10, fontStyle: 'italic', color: colors.textMuted },
   subItem: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 8, borderBottomWidth: 1,
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border,
     gap: 10,
   },
-  subName: { fontSize: 12 },
-  subBarTrack: { height: 3, borderRadius: 2, marginTop: 4 },
+  subName: { fontSize: 12, color: colors.textPrimary },
+  subBarTrack: { height: 3, borderRadius: 2, marginTop: 4, backgroundColor: colors.border },
   subBarFill: { height: 3, borderRadius: 2 },
   subRight: { alignItems: 'flex-end', minWidth: 70 },
   subAmt: { fontSize: 12, fontWeight: '700' },
-  subPct: { fontSize: 10, marginTop: 2 },
+  subPct: { fontSize: 10, marginTop: 2, color: colors.textMuted },
 
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 30 },
@@ -309,7 +309,7 @@ const makeStyles = (colors) => StyleSheet.create({
 
 export default function AnalyticsScreen() {
   const db = useSQLiteContext();
-  const { colors, typeConfig } = useAppContext();
+  const { colors } = useAppContext();
   const styles = makeStyles(colors);
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
   const [expenseData, setExpenseData] = useState([]);
@@ -429,9 +429,9 @@ export default function AnalyticsScreen() {
   const maxExpense = expenseData.length > 0 ? expenseData[0].total : 1;
 
   const statusConfig = {
-    sehat:   { color: '#00c896', label: 'Keuangan Sehat',   icon: 'checkmark-circle' },
-    warning: { color: '#f59e0b', label: 'Perlu Perhatian',  icon: 'warning' },
-    kritis:  { color: '#ff4d6d', label: 'Kondisi Kritis',   icon: 'alert-circle' },
+    sehat:   { color: colors.income, label: 'Keuangan Sehat',   icon: 'checkmark-circle' },
+    warning: { color: colors.warning, label: 'Perlu Perhatian',  icon: 'warning' },
+    kritis:  { color: colors.expense, label: 'Kondisi Kritis',   icon: 'alert-circle' },
   };
   const sc = statusConfig[financeStatus];
 
@@ -495,11 +495,8 @@ export default function AnalyticsScreen() {
       )}
 
       {/* ── Health Score Card ── */}
-      <LinearGradient
-        colors={[colors.bgCard, colors.brandBg]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.healthCard, { borderColor: colors.border }]}
+      <View
+        style={[styles.healthCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
       >
         <View style={styles.healthLeft}>
           <View style={[styles.healthBadge, { backgroundColor: sc.color + '20' }]}>
@@ -510,7 +507,7 @@ export default function AnalyticsScreen() {
           <Text style={[styles.healthDesc, { color: colors.textSecondary }]}>{financeSummary}</Text>
         </View>
         <ScoreRing score={financeScore} status={financeStatus} colors={colors} />
-      </LinearGradient>
+      </View>
 
       {/* ── Monthly Comparison Card ── */}
       <MonthComparisonCard data={monthComparison} colors={colors} styles={styles} />
@@ -524,14 +521,14 @@ export default function AnalyticsScreen() {
               label="Savings Rate"
               value={`${health.savingsRate}%`}
               sub={health.savingsRate >= 20 ? '✓ Ideal ≥20%' : '↑ Target 20%'}
-              color={health.savingsRate >= 20 ? '#00c896' : '#f59e0b'}
+              color={health.savingsRate >= 20 ? colors.income : colors.warning}
               icon="trending-up"
             />
             <MetricCard
               label="Expense Ratio"
               value={`${health.eir}%`}
               sub={health.eir <= 70 ? '✓ Efisien ≤70%' : '↓ Target <70%'}
-              color={health.eir <= 70 ? '#00c896' : '#ff4d6d'}
+              color={health.eir <= 70 ? colors.income : colors.expense}
               icon="pie-chart"
             />
           </View>
@@ -540,14 +537,14 @@ export default function AnalyticsScreen() {
               label="Fixed Cost"
               value={`${health.fixedRatio}%`}
               sub="Dari total pemasukan"
-              color={health.fixedRatio <= 50 ? '#00c896' : '#f59e0b'}
+              color={health.fixedRatio <= 50 ? colors.income : colors.warning}
               icon="lock-closed"
             />
             <MetricCard
               label="Dana Darurat"
               value={health.runway === Infinity ? '∞ bln' : `${health.runway} bln`}
               sub={health.runway >= 6 ? '✓ Sangat aman' : health.runway >= 3 ? 'Cukup aman' : '⚠ Perlu ditambah'}
-              color={health.runway >= 3 ? '#00c896' : '#ff4d6d'}
+              color={health.runway >= 3 ? colors.income : colors.expense}
               icon="shield-checkmark"
             />
           </View>
@@ -633,17 +630,17 @@ export default function AnalyticsScreen() {
                       <View style={[styles.barFill, { width: `${barW}%`, backgroundColor: item.color }]} />
                     </View>
                   </View>
-                  <View style={styles.breakdownRight}>
-                    <Text style={[styles.breakdownAmt, { color: item.color }]}>{formatRupiah(item.total)}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                      <Text style={styles.breakdownPct}>{item.percentage}%</Text>
-                      <Ionicons
-                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                        size={11}
-                        color="#4a5568"
-                      />
+                    <View style={styles.breakdownRight}>
+                      <Text style={[styles.breakdownAmt, { color: item.color }]}>{formatRupiah(item.total)}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                        <Text style={styles.breakdownPct}>{item.percentage}%</Text>
+                        <Ionicons
+                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={11}
+                          color={colors.textMuted}
+                        />
+                      </View>
                     </View>
-                  </View>
                 </TouchableOpacity>
 
                 {/* Drill-down sub-categories */}

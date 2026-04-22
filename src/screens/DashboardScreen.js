@@ -7,7 +7,6 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -28,8 +27,7 @@ import {
   getStats,
   getTotalHarta
 } from '../db/database';
-import { formatRupiah, formatRupiahFull, getGreeting } from '../utils/formatting';
-import { FontSizes, Radius, Spacing } from '../constants/theme';
+import { formatRupiah, getGreeting } from '../utils/formatting';
 
 const FILTER_OPTIONS = [
   { key: 'today', label: 'Hari Ini' },
@@ -48,10 +46,8 @@ export default function DashboardScreen({ navigation }) {
   const [filter, setFilter] = useState('all');
   const { userName, colors, currentTheme } = useAppContext();
   const styles = makeStyles(colors);
-  
-  const [loading, setLoading] = useState(true);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+
+  const [initialLoading, setInitialLoading] = useState(true);  const [refreshing, setRefreshing] = useState(false);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
   // Modal State
@@ -75,7 +71,6 @@ export default function DashboardScreen({ navigation }) {
       console.error('loadData error:', e);
       Alert.alert('Error', 'Gagal memuat data dashboard.');
     } finally {
-      setLoading(false);
       setInitialLoading(false);
       setRefreshing(false);
     }
@@ -93,7 +88,7 @@ export default function DashboardScreen({ navigation }) {
   };
 
   const handleTxPress = (tx) => {
-    navigation.navigate('Transaction', { editTx: tx });
+    navigation.navigate('Tambah Transaksi', { editTx: tx, source: 'Beranda' });
   };
 
   const handleTxLongPress = (tx) => {
@@ -105,7 +100,7 @@ export default function DashboardScreen({ navigation }) {
   const confirmDelete = async () => {
     if (!selectedTx) return;
     try {
-      await deleteTransaction(db, selectedTx.id, selectedTx);
+      await deleteTransaction(db, selectedTx.id);
       setIsModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       loadData();
@@ -130,9 +125,6 @@ export default function DashboardScreen({ navigation }) {
             <Text style={styles.greeting}>{getGreeting()},</Text>
             <Text style={styles.userName}>{userName || 'User'}</Text>
           </View>
-          <TouchableOpacity style={styles.notifBtn}>
-            <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
         </View>
 
         {/* Hero Card */}
@@ -278,7 +270,7 @@ export default function DashboardScreen({ navigation }) {
         )}
       </View>
     );
-  }, [userName, stats, totalHarta, accounts, filter, navigation, savingsRate, isFilterExpanded, colors, currentTheme]);
+  }, [userName, stats, totalHarta, accounts, filter, navigation, savingsRate, isFilterExpanded, colors, currentTheme, styles]);
 
   if (initialLoading) {
     return (

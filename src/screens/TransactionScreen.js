@@ -12,7 +12,6 @@ import { formatDate, formatCurrencyInput, parseCurrencyRaw } from '../utils/form
 import StatusModal from '../components/StatusModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { FontSizes, Radius, Spacing } from '../constants/theme';
 
 // TYPE_OPTIONS defined inside component for theme support
 
@@ -20,10 +19,9 @@ const QUICK_AMOUNTS = [10000, 20000, 50000, 100000, 200000, 500000];
 
 export default function TransactionScreen({ navigation, route }) {
   const db = useSQLiteContext();
-  const { colors, typeConfig } = useAppContext();
-  
-  const TYPE_OPTIONS = [
-    { key: 'expense', label: 'Pengeluaran', color: colors.expense, bg: colors.expenseBg, icon: 'arrow-down-circle' },
+  const { colors } = useAppContext();
+
+  const TYPE_OPTIONS = [    { key: 'expense', label: 'Pengeluaran', color: colors.expense, bg: colors.expenseBg, icon: 'arrow-down-circle' },
     { key: 'income', label: 'Pemasukan', color: colors.income, bg: colors.incomeBg, icon: 'arrow-up-circle' },
     { key: 'transfer', label: 'Transfer', color: colors.brand, bg: colors.brandBg, icon: 'swap-horizontal' },
   ];
@@ -50,6 +48,19 @@ export default function TransactionScreen({ navigation, route }) {
 
   const [statusModal, setStatusModal] = useState({ visible: false, title: '', message: '', type: 'info' });
 
+  const resetForm = useCallback(() => {
+    setType('expense');
+    setAmount('');
+    setFee('');
+    setDesc('');
+    setSelectedCat(null);
+    setSelectedSub(null);
+    setToAccountId(null);
+    setDate(new Date());
+    // Clear params so it doesn't re-trigger edit mode on next focus
+    navigation.setParams({ editTx: null, source: null });
+  }, [navigation]);
+
   const showStatus = (title, message, type) => {
     setStatusModal({ visible: true, title, message, type });
   };
@@ -67,9 +78,9 @@ export default function TransactionScreen({ navigation, route }) {
             // Pre-fill form dengan data transaksi yang akan diedit
             setType(editTx.type);
             const numAmt = editTx.amount || 0;
-            setAmount('Rp ' + numAmt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+            setAmount(formatCurrencyInput(numAmt.toString()));
             if (editTx.fee) {
-              setFee('Rp ' + editTx.fee.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+              setFee(formatCurrencyInput(editTx.fee.toString()));
             }
             setDesc(editTx.description || '');
             setAccountId(editTx.account_id);
@@ -115,8 +126,12 @@ export default function TransactionScreen({ navigation, route }) {
         }
       }
       load();
-      return () => { cancelled = true; };
-    }, [db, editTx, isEditMode, preselectedAccountId])
+      return () => { 
+        cancelled = true; 
+        // Reset form when leaving the screen to keep it clean
+        resetForm();
+      };
+    }, [db, editTx, isEditMode, preselectedAccountId, resetForm])
   );
 
   // Terpisah agar tidak me-reset nominal/isian form ketika tipe transaksi diganti
@@ -195,11 +210,16 @@ export default function TransactionScreen({ navigation, route }) {
         await updateTransaction(db, editTx.id, txParams, editTx);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showStatus('Berhasil', 'Transaksi berhasil diperbarui!', 'success');
-        setTimeout(() => navigation.goBack(), 1200);
+        setTimeout(() => {
+          const returnTo = route.params?.source || 'Beranda';
+          resetForm();
+          navigation.navigate(returnTo);
+        }, 1200);
       } else {
         await addTransaction(db, txParams);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        navigation.goBack();
+        resetForm();
+        navigation.navigate(route.params?.source || 'Beranda');
       }
     } catch (e) {
       console.error('handleSave error:', e);
@@ -405,10 +425,14 @@ export default function TransactionScreen({ navigation, route }) {
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {isEditMode && (
             <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: colors.bgElevated, flex: 1 }]}
-              onPress={() => navigation.goBack()}
+              style={[styles.saveBtn, { backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, flex: 1 }]}
+              onPress={() => {
+                const returnTo = route.params?.source || 'Beranda';
+                resetForm();
+                navigation.navigate(returnTo);
+              }}
             >
-              <Text style={[styles.saveBtnText, { color: colors.expense }]}>Batal</Text>
+              <Text style={[styles.saveBtnText, { color: colors.textPrimary }]}>Batal</Text>
             </TouchableOpacity>
           )}
 

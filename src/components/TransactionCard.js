@@ -4,7 +4,6 @@ import React from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAppContext } from '../context/AppContext';
 import { formatRupiah, formatDate } from '../utils/formatting';
-import { FontSizes, Radius, Spacing } from '../constants/theme';
 
 export default function TransactionCard({ item, onPress, onLongPress, showActions = false, onEdit, onDelete }) {
   const { colors, typeConfig } = useAppContext();

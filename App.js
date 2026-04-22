@@ -11,6 +11,7 @@ import { initDatabase } from './src/db/database';
 
 // Imported Screens
 import { AppProvider, useAppContext } from './src/context/AppContext';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import MutasiScreen from './src/screens/MutasiScreen';
@@ -29,47 +30,7 @@ function LoadingFallback() {
   );
 }
 
-// Error Boundary — catches render crashes and shows fallback UI
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#060d1a', padding: 30 }}>
-          <Ionicons name="warning-outline" size={56} color="#ff4d6d" />
-          <Text style={{ color: '#e8edf5', fontSize: 18, fontWeight: '700', marginTop: 18, textAlign: 'center' }}>
-            Terjadi Kesalahan
-          </Text>
-          <Text style={{ color: '#8892a4', fontSize: 13, textAlign: 'center', marginTop: 10, lineHeight: 20 }}>
-            Aplikasi mengalami masalah. Coba restart atau hubungi developer.
-          </Text>
-          <Text style={{ color: '#2a3550', fontSize: 11, textAlign: 'center', marginTop: 12, fontFamily: 'monospace' }}>
-            {this.state.error?.message || 'Unknown error'}
-          </Text>
-          <TouchableOpacity
-            style={{ marginTop: 24, backgroundColor: '#7c6aff', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 }}
-            onPress={() => this.setState({ hasError: false, error: null })}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Coba Lagi</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
+// ErrorBoundary is imported from src/components/ErrorBoundary.js
 
 function AppContent() {
   const insets = useSafeAreaInsets();
