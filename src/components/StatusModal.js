@@ -1,39 +1,52 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Radius, Spacing, FontSizes } from '../constants/theme';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppContext } from '../context/AppContext';
+import { FontSizes, Radius, Spacing } from '../constants/theme';
 
 export default function StatusModal({ visible, onClose, title, message, type = 'info' }) {
+  const { colors } = useAppContext();
   let iconName = 'information-circle';
-  let iconColor = Colors.info;
+  let iconColor = colors.info;
 
   if (type === 'error') {
     iconName = 'alert-circle';
-    iconColor = Colors.expense;
+    iconColor = colors.expense;
   } else if (type === 'success') {
     iconName = 'checkmark-circle';
-    iconColor = Colors.income;
+    iconColor = colors.income;
   } else if (type === 'warning') {
     iconName = 'warning';
-    iconColor = Colors.warning;
+    iconColor = colors.warning;
   }
+
+  const handleClose = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClose();
+  };
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.dialog}>
-          <Ionicons name={iconName} size={48} color={iconColor} style={styles.icon} />
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
-          <TouchableOpacity style={[styles.btn, { backgroundColor: iconColor }]} onPress={onClose}>
-            <Text style={styles.btnText}>Tutup</Text>
+      <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
+        <LinearGradient
+          colors={[colors.bgCard, colors.bgElevated]}
+          style={[styles.dialog, { borderColor: colors.border }]}
+        >
+          <View style={[styles.iconCircle, { backgroundColor: iconColor + '1a' }]}>
+            <Ionicons name={iconName} size={36} color={iconColor} />
+          </View>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+          <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: iconColor }]} onPress={handleClose}>
+            <Text style={styles.btnText}>Lanjutkan</Text>
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
       </View>
     </Modal>
   );
@@ -41,42 +54,46 @@ export default function StatusModal({ visible, onClose, title, message, type = '
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: Colors.overlay,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: Spacing.xl,
   },
   dialog: {
-    width: '100%', 
-    maxWidth: 320, 
-    backgroundColor: Colors.bgCard, 
-    borderRadius: Radius['2xl'], 
-    padding: Spacing['2xl'], 
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: Radius['2xl'],
+    padding: Spacing['2xl'],
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
   },
-  icon: { marginBottom: Spacing.md },
-  title: { 
-    color: Colors.textPrimary, 
-    fontSize: FontSizes.xl, 
-    fontWeight: 'bold', 
-    marginBottom: Spacing.sm, 
-    textAlign: 'center' 
+  iconCircle: {
+    width: 72, height: 72, borderRadius: 36,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
-  message: { 
-    color: Colors.textSecondary, 
-    fontSize: FontSizes.md, 
-    textAlign: 'center', 
-    lineHeight: 20, 
-    marginBottom: Spacing.xl 
+  title: {
+    fontSize: FontSizes.xl,
+    fontWeight: 'bold',
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
-  btn: { 
-    width: '100%', 
-    padding: Spacing.md, 
-    borderRadius: Radius.lg, 
-    alignItems: 'center' 
+  message: {
+    fontSize: FontSizes.md,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: Spacing.xl,
+  },
+  btn: {
+    width: '100%',
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
   },
   btnText: { color: '#fff', fontSize: FontSizes.md, fontWeight: 'bold' },
 });

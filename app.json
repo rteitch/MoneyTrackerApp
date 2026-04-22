@@ -45,7 +45,8 @@
         }
       ],
       "expo-sqlite",
-      "expo-media-library"
+      "expo-media-library",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

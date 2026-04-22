@@ -1,31 +1,43 @@
-import React, { useState, useCallback, useRef } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Alert, Vibration, Animated, ActivityIndicator
-} from 'react-native';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useFocusEffect } from '@react-navigation/native';
-import {
-  getStats, getRecentTransactions, getDateFilterBoundary,
-  getAccounts, getTotalHarta, deleteTransaction
-} from '../db/database';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/theme';
-import { formatRupiah, formatRupiahFull, getGreeting } from '../utils/formatting';
-import TransactionCard from '../components/TransactionCard';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ScrollView
+} from 'react-native';
 import BottomSheetModal from '../components/BottomSheetModal';
+import TransactionCard from '../components/TransactionCard';
+import CountUp from '../components/CountUp';
 import { useAppContext } from '../context/AppContext';
+import {
+  deleteTransaction,
+  getAccounts,
+  getDateFilterBoundary,
+  getRecentTransactions,
+  getStats,
+  getTotalHarta
+} from '../db/database';
+import { formatRupiah, formatRupiahFull, getGreeting } from '../utils/formatting';
+import { FontSizes, Radius, Spacing } from '../constants/theme';
 
-const FILTERS = [
+const FILTER_OPTIONS = [
   { key: 'today', label: 'Hari Ini' },
   { key: 'week', label: 'Minggu Ini' },
   { key: 'month', label: 'Bulan Ini' },
   { key: 'year', label: 'Tahun Ini' },
-  { key: 'last_year', label: 'Tahun Lalu' },
   { key: 'all', label: 'Semua' },
 ];
-
-
 
 export default function DashboardScreen({ navigation }) {
   const db = useSQLiteContext();
@@ -34,356 +46,439 @@ export default function DashboardScreen({ navigation }) {
   const [accounts, setAccounts] = useState([]);
   const [totalHarta, setTotalHarta] = useState(0);
   const [filter, setFilter] = useState('all');
-  const { userName } = useAppContext();
+  const { userName, colors, currentTheme } = useAppContext();
+  const styles = makeStyles(colors);
+  
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [txToDelete, setTxToDelete] = useState(null);
-  const fabAnim = useRef(new Animated.Value(1)).current;
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
-  const loadData = useCallback(async (cancelled = { current: false }) => {
+  // Modal State
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  const loadData = useCallback(async () => {
     try {
-      setLoading(true);
-      setLoadError(false);
-      const bounds = getDateFilterBoundary(filter);
-      const s = await getStats(db, bounds);
-      if (cancelled.current) return;
+      const boundary = getDateFilterBoundary(filter);
+      const [s, tx, accs, total] = await Promise.all([
+        getStats(db, boundary),
+        getRecentTransactions(db, 10, boundary),
+        getAccounts(db),
+        getTotalHarta(db)
+      ]);
       setStats(s);
-      const tx = await getRecentTransactions(db, 20, bounds);
-      if (cancelled.current) return;
       setRecentTX(tx);
-      const acc = await getAccounts(db);
-      if (cancelled.current) return;
-      setAccounts(acc);
-      const harta = await getTotalHarta(db);
-      if (cancelled.current) return;
-      setTotalHarta(harta);
+      setAccounts(accs);
+      setTotalHarta(total);
     } catch (e) {
-      console.error('Dashboard loadData error:', e);
-      if (!cancelled.current) setLoadError(true);
+      console.error('loadData error:', e);
+      Alert.alert('Error', 'Gagal memuat data dashboard.');
     } finally {
-      if (!cancelled.current) setLoading(false);
+      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   }, [db, filter]);
 
-  useFocusEffect(useCallback(() => {
-    const cancelled = { current: false };
-    loadData(cancelled);
-    return () => { cancelled.current = true; };
-  }, [loadData]));
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
-  const handleFabPress = () => {
-    Animated.sequence([
-      Animated.spring(fabAnim, { toValue: 0.88, useNativeDriver: true, speed: 30 }),
-      Animated.spring(fabAnim, { toValue: 1, useNativeDriver: true, speed: 20 }),
-    ]).start();
-    navigation.navigate('Tambah Transaksi');
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
 
-  const handleDelete = (item) => {
-    Vibration.vibrate(40);
-    setTxToDelete(item);
-    setModalVisible(true);
+  const handleTxPress = (tx) => {
+    navigation.navigate('Transaction', { editTx: tx });
   };
 
-  const executeDelete = async () => {
-    if (!txToDelete) return;
+  const handleTxLongPress = (tx) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedTx(tx);
+    setIsModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedTx) return;
     try {
-      await deleteTransaction(db, txToDelete.id);
-      setModalVisible(false);
-      setTxToDelete(null);
+      await deleteTransaction(db, selectedTx.id, selectedTx);
+      setIsModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       loadData();
     } catch (e) {
-      console.error('Dashboard executeDelete error:', e);
-      setModalVisible(false);
-      setTxToDelete(null);
-      Alert.alert(
-        'Gagal Menghapus',
-        'Transaksi tidak dapat dihapus. Silakan coba lagi.',
-        [{ text: 'OK' }]
-      );
+      console.error('Delete error:', e);
+      Alert.alert('Gagal', 'Terjadi kesalahan saat menghapus transaksi.');
     }
   };
 
-  const savingsRate = stats.income > 0
-    ? Math.max(0, ((stats.income - stats.expense) / stats.income) * 100)
-    : 0;
+  const savingsRate = stats.income > 0 ? ((stats.income - stats.expense) / stats.income) * 100 : 0;
 
-  const getGreetingText = () => getGreeting();
+  const renderHeader = useMemo(() => {
+    const isLight = currentTheme === 'light';
+    const heroGradient = isLight 
+      ? [colors.brand, '#9385ff'] 
+      : [colors.bgCard, colors.brandBg];
 
-  const renderTxItem = (item) => (
-    <TransactionCard
-      key={item.id}
-      item={item}
-      onPress={(tx) => navigation.navigate('Tambah Transaksi', { editTx: tx })}
-      onLongPress={handleDelete}
-    />
-  );
-
-  const netColor = (stats.income - stats.expense) >= 0 ? '#00c896' : '#ff4d6d';
-
-  return (
-    <View style={styles.root}>
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.brand} />
-          <Text style={styles.loadingText}>Memuat data...</Text>
-        </View>
-      ) : loadError ? (
-        <View style={styles.loadingContainer}>
-          <Ionicons name="cloud-offline-outline" size={56} color="#ff4d6d33" />
-          <Text style={[styles.loadingText, { color: '#ff4d6d', marginTop: 16 }]}>Gagal Memuat Data</Text>
-          <TouchableOpacity
-            style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#1a1040', borderRadius: 12, borderWidth: 1, borderColor: '#7c6aff' }}
-            onPress={() => loadData()}
-          >
-            <Text style={{ color: '#7c6aff', fontSize: 13, fontWeight: '700' }}>Coba Lagi</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 110 }}
-      >
-        {/* Header */}
-        <View style={styles.headerArea}>
+    return (
+      <View style={styles.header}>
+        <View style={styles.topBar}>
           <View>
-            <Text style={styles.greeting}>{getGreetingText()},</Text>
-            <Text style={styles.userName}>{userName} 👋</Text>
+            <Text style={styles.greeting}>{getGreeting()},</Text>
+            <Text style={styles.userName}>{userName || 'User'}</Text>
           </View>
-          <TouchableOpacity style={styles.notifBtn} onPress={() => navigation.navigate('Pengaturan')}>
-            <Ionicons name="person-circle-outline" size={28} color={Colors.textMuted} />
+          <TouchableOpacity style={styles.notifBtn}>
+            <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
-        {/* Filter Chips */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          style={styles.filterScroll}
-          contentContainerStyle={{ paddingLeft: 20, paddingRight: 32 }}
+        {/* Hero Card */}
+        <LinearGradient
+          colors={heroGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
         >
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.chip, filter === f.key && styles.chipActive]}
-              onPress={() => setFilter(f.key)}
-            >
-              <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Hero Balance Card */}
-        <View style={styles.heroCard}>
+          <View style={styles.heroDecoration1} />
+          <View style={styles.heroDecoration2} />
           <View style={styles.heroTop}>
             <Text style={styles.heroLabel}>Total Aset (Kas Aktif)</Text>
-            <View style={[styles.savingsBadge, { backgroundColor: savingsRate >= 20 ? '#003d2a' : savingsRate >= 0 ? '#2d1a00' : '#2d0a14' }]}>
-              <Text style={[styles.savingsText, { color: savingsRate >= 20 ? '#00c896' : savingsRate >= 0 ? '#f59e0b' : '#ff4d6d' }]}>
+            <View style={[
+              styles.savingsBadge, 
+              { backgroundColor: isLight ? 'rgba(255,255,255,0.2)' : (savingsRate >= 20 ? colors.incomeBg : (savingsRate >= 0 ? colors.warningBg : colors.expenseBg)) }
+            ]}>
+              <Text style={[
+                styles.savingsText, 
+                { color: isLight ? '#fff' : (savingsRate >= 20 ? colors.income : (savingsRate >= 0 ? colors.warning : colors.expense)) }
+              ]}>
                 {savingsRate.toFixed(0)}% saved
               </Text>
             </View>
           </View>
-          <Text style={styles.heroBalance}>{formatRupiahFull(totalHarta)}</Text>
+          <CountUp value={totalHarta} style={styles.heroBalance} isFull />
           <View style={styles.heroDivider} />
           <View style={styles.heroStats}>
             <View style={styles.heroStatItem}>
               <View style={styles.heroStatIcon}>
-                <Ionicons name="arrow-up-circle" size={16} color="#00c896" />
+                <Ionicons name="arrow-up-circle" size={16} color={isLight ? '#fff' : colors.income} />
               </View>
               <View>
                 <Text style={styles.heroStatLabel}>Pemasukan</Text>
-                <Text style={[styles.heroStatVal, { color: '#00c896' }]}>+{formatRupiah(stats.income)}</Text>
+                <Text style={styles.heroStatVal}>
+                  + <CountUp value={stats.income} />
+                </Text>
               </View>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStatItem}>
               <View style={styles.heroStatIcon}>
-                <Ionicons name="arrow-down-circle" size={16} color="#ff4d6d" />
+                <Ionicons name="arrow-down-circle" size={16} color={isLight ? '#fff' : colors.expense} />
               </View>
               <View>
                 <Text style={styles.heroStatLabel}>Pengeluaran</Text>
-                <Text style={[styles.heroStatVal, { color: '#ff4d6d' }]}>−{formatRupiah(stats.expense)}</Text>
-              </View>
-            </View>
-            <View style={styles.heroStatDivider} />
-            <View style={styles.heroStatItem}>
-              <View style={styles.heroStatIcon}>
-                <Ionicons name="swap-vertical" size={16} color={netColor} />
-              </View>
-              <View>
-                <Text style={styles.heroStatLabel}>Net Cash</Text>
-                <Text style={[styles.heroStatVal, { color: netColor }]}>
-                  {stats.income - stats.expense >= 0 ? '+' : '−'}
-                  {formatRupiah(Math.abs(stats.income - stats.expense))}
+                <Text style={styles.heroStatVal}>
+                  − <CountUp value={stats.expense} />
                 </Text>
               </View>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
-        {/* Wallet Cards */}
+        {/* Wallets Section */}
         <Text style={styles.sectionLabel}>Dompet & Rekening</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.walletsScroll}>
-          {accounts.map(acc => (
+        <FlatList
+          horizontal
+          data={accounts}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.walletScroll}
+          renderItem={({ item }) => (
             <TouchableOpacity
-              key={acc.id}
-              style={[styles.walletCard, { borderLeftColor: acc.color }]}
-              onPress={() => navigation.navigate('Tambah Transaksi', { accountId: acc.id })}
+              activeOpacity={0.7}
+              style={[styles.walletCard, { borderLeftColor: item.color }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                navigation.navigate('Mutasi', { accountId: item.id, accountName: item.name });
+              }}
             >
-              <View style={[styles.walletDot, { backgroundColor: acc.color }]} />
-              <Text style={styles.walletType}>{acc.type.toUpperCase()}</Text>
-              <Text style={styles.walletName} numberOfLines={1}>{acc.name}</Text>
-              <Text style={[styles.walletBalance, { color: acc.color }]}>
-                {formatRupiah(acc.current_balance)}
+              <View style={[styles.walletDot, { backgroundColor: item.color }]} />
+              <Text style={styles.walletType}>{(item.type || 'cash').toUpperCase()}</Text>
+              <Text style={styles.walletName} numberOfLines={1}>{item.name}</Text>
+              <Text style={[styles.walletBalance, { color: isLight ? colors.textPrimary : item.color }]}>
+                {formatRupiah(item.current_balance)}
               </Text>
+              <View style={styles.walletProgressBG}>
+                <View 
+                  style={[
+                    styles.walletProgressFill, 
+                    { 
+                      backgroundColor: item.color, 
+                      width: `${Math.min(100, (item.current_balance / (totalHarta || 1)) * 100)}%` 
+                    }
+                  ]} 
+                />
+              </View>
             </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={styles.addWalletCard}
-            onPress={() => navigation.navigate('Pengaturan')}
-          >
-            <Ionicons name="add" size={24} color="#4a5568" />
-            <Text style={styles.addWalletText}>Tambah{'\n'}Dompet</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Recent Transactions */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Riwayat Transaksi</Text>
-          {recentTX.length > 0 && (
-            <Text style={styles.sectionHint}>ketuk edit · tahan hapus</Text>
           )}
+          ListFooterComponent={
+            <TouchableOpacity style={styles.addWalletCard} onPress={() => navigation.navigate('Pengaturan', { tab: 'wallet' })}>
+              <Ionicons name="add-circle-outline" size={24} color={colors.textSecondary} />
+              <Text style={styles.addWalletText}>Tambah</Text>
+            </TouchableOpacity>
+          }
+        />
+
+        {/* Recent Activity Header */}
+        <View style={styles.activityHeader}>
+          <Text style={[styles.sectionLabel, { marginLeft: 0, marginBottom: 0 }]}>Aktivitas Terbaru</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity 
+              style={styles.filterToggle} 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setIsFilterExpanded(!isFilterExpanded);
+              }}
+            >
+              <Text style={styles.filterToggleLabel}>
+                {FILTER_OPTIONS.find(f => f.key === filter)?.label}
+              </Text>
+              <Ionicons name={isFilterExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.brand} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Mutasi')}>
+              <Text style={styles.seeAll}>Lihat Semua</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {recentTX.length > 0 ? (
-          recentTX.map(item => renderTxItem(item))
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={44} color="#2a3550" />
-            <Text style={styles.emptyTitle}>Belum ada transaksi</Text>
-            <Text style={styles.emptySubtitle}>Ketuk tombol + untuk mulai mencatat</Text>
-          </View>
+        {/* Filter Horizontal List (Shown only if expanded) */}
+        {isFilterExpanded && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterContent}
+          >
+            {FILTER_OPTIONS.map((f) => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.chip, filter === f.key && styles.chipActive]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setFilter(f.key);
+                  setIsFilterExpanded(false);
+                }}
+              >
+                <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>{f.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         )}
-      </ScrollView>
-      )}
+      </View>
+    );
+  }, [userName, stats, totalHarta, accounts, filter, navigation, savingsRate, isFilterExpanded, colors, currentTheme]);
 
-      {/* FAB */}
-      <Animated.View style={[styles.fabWrap, { transform: [{ scale: fabAnim }] }]}>
-        <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.85}>
-          <Ionicons name="add" size={30} color="#fff" />
-        </TouchableOpacity>
-      </Animated.View>
+  if (initialLoading) {
+    return (
+      <View style={[styles.loadingArea, { backgroundColor: colors.bgPrimary }]}>
+        <ActivityIndicator size="large" color={colors.brand} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
+      <FlatList
+        data={recentTX}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <TransactionCard
+            item={item}
+            onPress={handleTxPress}
+            onLongPress={handleTxLongPress}
+          />
+        )}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="receipt-outline" size={48} color={colors.bgElevated} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Belum ada transaksi</Text>
+          </View>
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />
+        }
+      />
 
       <BottomSheetModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        title="Batalkan Transaksi?"
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        title="Hapus Transaksi?"
         iconName="trash-outline"
-        iconColor={Colors.expense}
-        primaryBtnText="Hapus"
-        primaryBtnIcon="trash"
-        primaryBtnAction={executeDelete}
-        primaryBtnColor={Colors.expense}
+        primaryBtnText="Ya, Hapus"
+        primaryBtnAction={confirmDelete}
+        primaryBtnColor={colors.expense}
       >
-        {txToDelete && (
-          <Text style={styles.sheetBody}>
-            Transaksi <Text style={styles.sheetBold}>{txToDelete.category_name || 'Transfer'}</Text> senilai{' '}
-            <Text style={styles.sheetAmount}>{formatRupiahFull(txToDelete.amount)}</Text> akan dihapus.
-            {'\n\n'}Saldo dompet <Text style={styles.sheetBold}>{txToDelete.account_name}</Text> akan
-            otomatis {txToDelete.type === 'expense' ? 'dikembalikan.' : 'dikurangi.'}
-          </Text>
-        )}
+        <View style={styles.modalBody}>
+          <Text style={[styles.modalDesc, { color: colors.textSecondary }]}>Apakah Anda yakin ingin menghapus transaksi ini?</Text>
+          {selectedTx && (
+            <View style={[styles.modalTxPreview, { backgroundColor: colors.bgPrimary }]}>
+              <Text style={[styles.modalTxCat, { color: colors.textPrimary }]}>{selectedTx.category_name}</Text>
+              <Text style={[styles.modalTxAmt, { color: selectedTx.type === 'expense' ? colors.expense : colors.income }]}>
+                {selectedTx.type === 'expense' ? '-' : '+'}{formatRupiah(selectedTx.amount)}
+              </Text>
+            </View>
+          )}
+        </View>
       </BottomSheetModal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bgPrimary },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: Colors.textMuted, marginTop: 12, fontSize: 13 },
-  headerArea: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
+const makeStyles = (colors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgPrimary },
+  loadingArea: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bgPrimary },
+  header: { paddingBottom: 10 },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    marginBottom: 20,
   },
-  greeting: { color: '#4a5568', fontSize: 13, fontWeight: '500' },
-  userName: { color: '#e8edf5', fontSize: 22, fontWeight: '700', marginTop: 2 },
-  notifBtn: { padding: 4 },
-
-  filterScroll: { marginBottom: 18, flexGrow: 0 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#0d1526', marginRight: 8, borderWidth: 1, borderColor: '#1a2540',
+  greeting: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  userName: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
+  notifBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgCard,
   },
-  chipActive: { backgroundColor: '#7c6aff', borderColor: '#7c6aff' },
-  chipText: { color: '#4a5568', fontSize: 12, fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
-
   heroCard: {
-    marginHorizontal: 16, borderRadius: 20, backgroundColor: '#0d1526',
-    padding: 22, marginBottom: 22, borderWidth: 1, borderColor: '#1a2540',
+    marginHorizontal: 16,
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    overflow: 'hidden',
+    position: 'relative',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  heroLabel: { color: '#4a5568', fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
-  savingsBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  savingsText: { fontSize: 11, fontWeight: '700' },
-  heroBalance: { color: '#e8edf5', fontSize: 30, fontWeight: '800', letterSpacing: -0.5, marginBottom: 18 },
-  heroDivider: { height: 1, backgroundColor: '#1a2540', marginBottom: 18 },
-  heroStats: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  heroStatItem: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  heroStatIcon: { marginRight: 8 },
-  heroStatLabel: { color: '#4a5568', fontSize: 10, fontWeight: '600', marginBottom: 2 },
-  heroStatVal: { fontSize: 13, fontWeight: '700' },
-  heroStatDivider: { width: 1, height: 32, backgroundColor: '#1a2540', marginHorizontal: 8 },
-
-  sectionLabel: { color: '#e8edf5', fontSize: 15, fontWeight: '700', marginLeft: 20, marginBottom: 12 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginRight: 20 },
-  sectionHint: { color: '#2a3550', fontSize: 11, fontStyle: 'italic' },
-
-  walletsScroll: { paddingLeft: 16, marginBottom: 24, flexGrow: 0, maxHeight: 110 },
+  heroDecoration1: {
+    position: 'absolute',
+    top: -20,
+    right: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  heroDecoration2: {
+    position: 'absolute',
+    bottom: -40,
+    left: -10,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  heroLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, color: 'rgba(255,255,255,0.7)' },
+  heroBalance: { fontSize: 32, fontWeight: '900', marginBottom: 20, color: '#ffffff' },
+  heroDivider: { height: 1, width: '100%', marginBottom: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
+  heroStats: { flexDirection: 'row', alignItems: 'center' },
+  heroStatItem: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  heroStatIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10, backgroundColor: 'rgba(255,255,255,0.1)' },
+  heroStatLabel: { fontSize: 10, fontWeight: '700', marginBottom: 2, color: 'rgba(255,255,255,0.6)' },
+  heroStatVal: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
+  heroStatDivider: { width: 1, height: 30, marginHorizontal: 15, backgroundColor: 'rgba(255,255,255,0.1)' },
+  savingsBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  savingsText: { fontSize: 10, fontWeight: '800' },
+  
+  sectionLabel: { fontSize: 16, fontWeight: '800', marginLeft: 20, marginBottom: 16, color: colors.textPrimary },
+  walletScroll: { paddingLeft: 16, paddingRight: 8, marginBottom: 24 },
   walletCard: {
-    backgroundColor: '#0d1526', borderRadius: 14, padding: 14,
-    marginRight: 12, width: 140, borderLeftWidth: 3, borderWidth: 1, borderColor: '#1a2540',
+    width: 150,
+    borderRadius: 20,
+    padding: 16,
+    marginRight: 12,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    backgroundColor: colors.bgCard,
+    borderColor: colors.border,
   },
-  walletDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 8 },
-  walletType: { color: '#4a5568', fontSize: 9, fontWeight: '700', letterSpacing: 1.2, marginBottom: 2 },
-  walletName: { color: '#e8edf5', fontSize: 13, fontWeight: '700', marginBottom: 6 },
-  walletBalance: { fontSize: 12, fontWeight: '600' },
+  walletDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 10 },
+  walletType: { fontSize: 9, fontWeight: '800', marginBottom: 4, color: colors.textMuted },
+  walletName: { fontSize: 14, fontWeight: '700', marginBottom: 12, color: colors.textPrimary },
+  walletBalance: { fontSize: 15, fontWeight: '800', marginBottom: 12 },
+  walletProgressBG: { height: 4, width: '100%', borderRadius: 2, overflow: 'hidden', backgroundColor: colors.bgElevated },
+  walletProgressFill: { height: '100%', borderRadius: 2 },
   addWalletCard: {
-    backgroundColor: '#0d1526', borderRadius: 14, padding: 14,
-    marginRight: 16, width: 80, borderWidth: 1, borderColor: '#1a2540',
-    borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center',
+    width: 100,
+    borderRadius: 20,
+    marginRight: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: colors.bgCard,
+    borderColor: colors.border,
   },
-  addWalletText: { color: '#4a5568', fontSize: 11, textAlign: 'center', marginTop: 6, lineHeight: 15 },
-
-  emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
-  emptyTitle: { color: '#2a3550', fontSize: 15, fontWeight: '600', marginTop: 14 },
-  emptySubtitle: { color: '#1e2a42', fontSize: 12, marginTop: 6 },
-
-  fabWrap: { position: 'absolute', bottom: 28, right: 20 },
-  fab: {
-    width: 58, height: 58, borderRadius: 18, backgroundColor: '#7c6aff',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#7c6aff', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45, shadowRadius: 12, elevation: 10,
+  addWalletText: { fontSize: 12, fontWeight: '700', marginTop: 8, color: colors.textSecondary },
+  
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
-
-  sheetTitle: { color: '#e8edf5', fontSize: 18, fontWeight: '700', marginBottom: 10, textAlign: 'center' },
-  sheetBody: { color: '#8892a4', fontSize: 14, lineHeight: 22, marginBottom: 26, textAlign: 'center' },
-  sheetBold: { color: '#e8edf5', fontWeight: '700' },
-  sheetAmount: { color: '#ff4d6d', fontWeight: '700' },
-  sheetBtns: { flexDirection: 'row', gap: 10 },
-  btnSecondary: {
-    flex: 1, padding: 14, borderRadius: 14, borderWidth: 1,
-    borderColor: '#1a2540', alignItems: 'center',
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+    backgroundColor: colors.bgCard,
+    borderColor: colors.border,
   },
-  btnSecondaryText: { color: '#8892a4', fontWeight: '600', fontSize: 15 },
-  btnDanger: {
-    flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#ff4d6d',
-    alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6,
+  filterToggleLabel: { fontSize: 12, fontWeight: '700', color: colors.brand },
+  seeAll: { fontSize: 12, fontWeight: '700', color: colors.brand },
+  filterScroll: { marginBottom: 16 },
+  filterContent: { paddingHorizontal: 16, gap: 10 },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: colors.bgCard,
+    borderColor: colors.border,
   },
-  btnDangerText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  chipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  chipText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
+  chipTextActive: { color: '#fff' },
+  
+  listContent: { paddingBottom: 100 },
+  emptyState: { padding: 40, alignItems: 'center' },
+  emptyText: { marginTop: 12, fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  modalBody: { paddingVertical: 10 },
+  modalDesc: { fontSize: 14, textAlign: 'center', marginBottom: 20, lineHeight: 20, color: colors.textSecondary },
+  modalTxPreview: { padding: 16, borderRadius: 16, alignItems: 'center', backgroundColor: colors.bgPrimary },
+  modalTxCat: { fontSize: 16, fontWeight: '700', marginBottom: 4, color: colors.textPrimary },
+  modalTxAmt: { fontSize: 20, fontWeight: '800' },
 });

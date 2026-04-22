@@ -3,7 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { File, Paths } from "expo-file-system/next";
 import * as Sharing from "expo-sharing";
 import { useSQLiteContext } from "expo-sqlite";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,38 +14,32 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Vibration,
   View,
+  RefreshControl,
+  SafeAreaView,
+  StatusBar,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import BottomSheetModal from "../components/BottomSheetModal";
 import TransactionCard from "../components/TransactionCard";
-import { Colors } from "../constants/theme";
+import { useAppContext } from '../context/AppContext';
 import {
   deleteTransaction,
   getAllTransactions,
   getDateFilterBoundary,
+  getAccounts,
 } from "../db/database";
 import {
-  formatDate,
   formatRupiah,
-  formatRupiahFull
+  formatRupiahFull,
+  formatDate,
 } from "../utils/formatting";
 
 const TYPE_FILTERS = [
   { key: "all", label: "Semua", icon: "list" },
-  {
-    key: "expense",
-    label: "Keluar",
-    icon: "arrow-down-circle",
-    color: "#ff4d6d",
-  },
-  { key: "income", label: "Masuk", icon: "arrow-up-circle", color: "#00c896" },
-  {
-    key: "transfer",
-    label: "Transfer",
-    icon: "swap-horizontal",
-    color: "#7c6aff",
-  },
+  { key: "expense", label: "Keluar", icon: "arrow-down-circle" },
+  { key: "income", label: "Masuk", icon: "arrow-up-circle" },
+  { key: "transfer", label: "Transfer", icon: "swap-horizontal" },
 ];
 
 const PERIOD_FILTERS = [
@@ -53,102 +47,97 @@ const PERIOD_FILTERS = [
   { key: "week", label: "Minggu Ini" },
   { key: "today", label: "Hari Ini" },
   { key: "year", label: "Tahun Ini" },
-  { key: "last_year", label: "Tahun Lalu" },
-  { key: "all", label: "Semua Waktu" },
+  { key: "all", label: "Semua" },
 ];
 
-const TYPE_CONFIG = {
-  expense: { label: "Keluar" },
-  income: { label: "Masuk" },
-  transfer: { label: "Transfer" },
-};
-
-export default function MutasiScreen({ navigation }) {
+export default function MutasiScreen({ navigation, route }) {
+  const { colors } = useAppContext();
+  const styles = makeStyles(colors);
   const db = useSQLiteContext();
+  
   const [transactions, setTransactions] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState("month");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // UI State
+  const [isPeriodExpanded, setIsPeriodExpanded] = useState(false);
+  const [isAccountExpanded, setIsAccountExpanded] = useState(false);
+  const [accountFilter, setAccountFilter] = useState(route?.params?.accountId || null);
+  const [accountName, setAccountName] = useState(route?.params?.accountName || "");
+  
+  // Modal State
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [txToDelete, setTxToDelete] = useState(null);
-
-  const searchTimeout = useRef(null);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setLoadError(false);
       const bounds = getDateFilterBoundary(periodFilter);
-      const [txs] = await Promise.all([
-        getAllTransactions(db, searchQuery, typeFilter, bounds),
+      const [txs, accs] = await Promise.all([
+        getAllTransactions(db, searchQuery, typeFilter, bounds, accountFilter),
+        getAccounts(db),
       ]);
       setTransactions(txs);
+      setAccounts(accs);
     } catch (e) {
       console.error("MutasiScreen loadData error:", e);
       setLoadError(true);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [db, searchQuery, typeFilter, periodFilter]);
+  }, [db, searchQuery, typeFilter, periodFilter, accountFilter]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData]),
+    }, [loadData])
   );
 
-  const handleSearchChange = (text) => {
-    setSearchQuery(text);
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => {
-      // loadData dipanggil via useCallback dependency
-    }, 300);
-  };
-
-  const totalIncome = transactions
-    .filter((t) => t.type === "income")
-    .reduce((s, t) => s + t.amount, 0);
-  const totalExpense = transactions
-    .filter((t) => t.type === "expense")
-    .reduce((s, t) => s + t.amount, 0);
-
-  const handleEdit = (item) => {
-    navigation.navigate("Tambah Transaksi", { editTx: item });
-  };
-
-  const handleDeletePress = (item) => {
-    Vibration.vibrate(40);
-    setTxToDelete(item);
-    setDeleteModalVisible(true);
-  };
-
-  const executeDelete = async () => {
-    if (!txToDelete) return;
-    try {
-      await deleteTransaction(db, txToDelete.id);
-      setDeleteModalVisible(false);
-      setTxToDelete(null);
-      loadData();
-    } catch (e) {
-      console.error("executeDelete error:", e);
-      setDeleteModalVisible(false);
-      setTxToDelete(null);
-      Alert.alert(
-        "Gagal Menghapus",
-        "Transaksi tidak dapat dihapus. Silakan coba lagi.",
-        [{ text: "OK" }],
-      );
+  // Sync route params when navigation occurs
+  useEffect(() => {
+    if (route?.params?.accountId) {
+      setAccountFilter(route.params.accountId);
+      setAccountName(route.params.accountName || "Dompet");
+      setPeriodFilter("all"); // Default to 'all' saat buka dari dashboard agar data muncul
+      // Clear params after consuming so it doesn't re-trigger
+      navigation.setParams({ accountId: undefined, accountName: undefined });
     }
+  }, [route?.params?.accountId, route?.params?.accountName, navigation]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
+
+  const resetAllFilters = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSearchQuery("");
+    setTypeFilter("all");
+    setPeriodFilter("month");
+    setAccountFilter(null);
+    setAccountName("");
+    setIsAccountExpanded(false);
+    setIsPeriodExpanded(false);
+  };
+
+  const isFiltered = searchQuery !== "" || typeFilter !== "all" || periodFilter !== "month" || accountFilter !== null;
+
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
   const handleExportCSV = async () => {
     if (transactions.length === 0) {
       Alert.alert(
         "Tidak Ada Data",
-        "Tidak ada transaksi untuk diekspor pada periode yang dipilih.",
+        "Tidak ada transaksi untuk diekspor pada filter yang dipilih.",
         [{ text: "OK" }],
       );
       return;
@@ -158,17 +147,14 @@ export default function MutasiScreen({ navigation }) {
       setExporting(true);
       await new Promise((r) => setTimeout(r, 50));
 
-      // ── Build CSV content ──────────────────────────────────────────────
       const periodLabel =
         PERIOD_FILTERS.find((p) => p.key === periodFilter)?.label || "Semua";
 
-      // Format nominal: Rp 1.250.000 (mudah dibaca, tidak perlu formula)
       const fmtRp = (val) => {
         if (!val || val === 0) return "Rp 0";
         return "Rp " + Number(val).toLocaleString("id-ID");
       };
 
-      // Format tanggal: DD/MM/YYYY HH:MM
       const fmtTgl = (isoStr) => {
         if (!isoStr) return "-";
         const d = new Date(isoStr);
@@ -181,20 +167,18 @@ export default function MutasiScreen({ navigation }) {
         return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
       };
 
-      // Wrap nilai dalam quotes, escape tanda kutip ganda di dalam nilai
       const cell = (val) => {
         if (val === null || val === undefined) return '"-"';
         const str = String(val).replace(/"/g, '""');
         return `"${str}"`;
       };
 
-      const SEPARATOR = ";"; // Pakai semicolon — standar Excel Indonesia/EU
+      const SEPARATOR = ";";
 
       const headerRow = [
         "Tanggal",
         "Tipe",
         "Nominal",
-        "Fee",
         "Kategori",
         "Sub-Kategori",
         "Dari Dompet",
@@ -204,12 +188,17 @@ export default function MutasiScreen({ navigation }) {
         .map(cell)
         .join(SEPARATOR);
 
+      const typeLabels = {
+        expense: "Keluar",
+        income: "Masuk",
+        transfer: "Transfer"
+      };
+
       const dataRows = transactions.map((t) => {
         return [
           fmtTgl(t.date),
-          TYPE_CONFIG[t.type]?.label || t.type,
+          typeLabels[t.type] || t.type,
           fmtRp(t.amount),
-          fmtRp(t.fee),
           t.category_name || "Transfer",
           t.subcategory_name || "-",
           t.account_name || "-",
@@ -220,39 +209,37 @@ export default function MutasiScreen({ navigation }) {
           .join(SEPARATOR);
       });
 
-      const BOM = "\uFEFF"; // UTF-8 BOM agar Excel baca karakter Indonesia
+      const BOM = "\uFEFF";
       const csvContent = BOM + [headerRow, ...dataRows].join("\r\n");
 
-      // ── Nama file ──────────────────────────────────────────────────────
       const now = new Date();
-      const safePeriod = periodLabel.replace(/[^a-zA-Z0-9]/g, "_");
-      const fileName = `mutasi_${safePeriod}_${now.getFullYear()}${String(
-        now.getMonth() + 1,
-      ).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}.csv`;
+      const typeLabel = TYPE_FILTERS.find(f => f.key === typeFilter)?.label || "Semua";
+      const currentAccName = accountFilter ? (accounts.find(a => a.id === accountFilter)?.name || "Dompet") : "Semua_Dompet";
+      const safePeriod = periodLabel.replace(/\s+/g, "_");
+      const safeType = typeLabel.replace(/\s+/g, "_");
+      const safeAcc = currentAccName.replace(/\s+/g, "_");
+      
+      const dateStamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+      const fileName = `mutasi_${safeType}_${safeAcc}_${safePeriod}_${dateStamp}.csv`;
 
-      // ── Tulis ke cache ─────────────────────────────────────────────────
       const fileRef = new File(Paths.cache, fileName);
       fileRef.write(csvContent);
-      const cacheUri = fileRef.uri;
-      console.log("Export CSV cache URI:", cacheUri);
+      const fileUri = fileRef.uri;
 
-      // ── Share sheet (Android & iOS) ───────────────────────────────────
-      // Share sheet Android sudah include opsi: simpan ke Downloads,
-      // Google Drive, WhatsApp, Email, dll — tanpa perlu izin tambahan.
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(cacheUri, {
+        await Sharing.shareAsync(fileUri, {
           mimeType: "text/csv",
           dialogTitle: "Simpan / Bagikan Laporan Mutasi",
           UTI: "public.comma-separated-values-text",
         });
       } else {
-        Alert.alert("Export Berhasil", `File tersimpan di:\n${cacheUri}`, [
+        Alert.alert("Export Berhasil", `File tersimpan di:\n${fileUri}`, [
           { text: "OK" },
         ]);
       }
     } catch (e) {
-      console.error("handleExportCSV error:", e);
+      console.error("Export error:", e);
       Alert.alert(
         "Gagal Export",
         `Terjadi kesalahan saat membuat laporan.\n\n${e?.message || "Silakan coba lagi."}`,
@@ -262,399 +249,323 @@ export default function MutasiScreen({ navigation }) {
       setExporting(false);
     }
   };
-
-  // Kelompokkan transaksi berdasarkan tanggal
-  const groupedData = [];
-  let currentDate = null;
-  transactions.forEach((tx) => {
-    const dateLabel = formatDate(tx.date);
-    if (dateLabel !== currentDate) {
-      currentDate = dateLabel;
-      groupedData.push({ type: "header", date: dateLabel, id: "h_" + tx.id });
-    }
-    groupedData.push({ type: "item", ...tx });
-  });
-
-  const renderItem = ({ item }) => {
-    if (item.type === "header") {
-      return (
-        <View style={styles.dateHeader}>
-          <View style={styles.dateDot} />
-          <Text style={styles.dateHeaderText}>{item.date}</Text>
-        </View>
-      );
-    }
-    return (
-      <TransactionCard
-        item={item}
-        showActions={true}
-        onEdit={handleEdit}
-        onDelete={handleDeletePress}
-      />
-    );
+  const handleDeletePress = (item) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setTxToDelete(item);
+    setDeleteModalVisible(true);
   };
 
-  return (
-    <View style={styles.root}>
+  const executeDelete = async () => {
+    if (!txToDelete) return;
+    try {
+      await deleteTransaction(db, txToDelete.id, txToDelete);
+      setDeleteModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      loadData();
+    } catch (e) {
+      Alert.alert("Gagal", "Transaksi tidak dapat dihapus.");
+    }
+  };
+
+  const renderHeader = useMemo(() => (
+    <View style={{ backgroundColor: colors.bgPrimary }}>
+      {/* Search Row */}
       <View style={styles.searchRow}>
-        <View style={styles.searchBar}>
-          <Ionicons
-            name="search-outline"
-            size={16}
-            color="#4a5568"
-            style={{ marginRight: 8 }}
-          />
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={18} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Cari kategori, catatan..."
-            placeholderTextColor="#2a3550"
+            placeholder="Cari transaksi..."
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
-            onChangeText={handleSearchChange}
-            returnKeyType="search"
+            onChangeText={setSearchQuery}
           />
-          {!!searchQuery && (
+          {searchQuery !== "" && (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={16} color="#4a5568" />
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity
-          style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
-          onPress={handleExportCSV}
-          disabled={exporting}
-        >
-          {exporting ? (
-            <ActivityIndicator size={16} color="#00c896" />
-          ) : (
-            <Ionicons name="download-outline" size={18} color="#00c896" />
-          )}
+        <TouchableOpacity style={styles.exportBtn} onPress={handleExportCSV}>
+          <Ionicons name="download-outline" size={20} color={colors.brand} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.typeFilterScroll}
-        contentContainerStyle={styles.typeFilterContent}
-      >
+      {/* Type Filter */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContent}>
         {TYPE_FILTERS.map((f) => (
           <TouchableOpacity
             key={f.key}
-            style={[
-              styles.typeChip,
-              typeFilter === f.key && styles.typeChipActive,
-            ]}
-            onPress={() => setTypeFilter(f.key)}
+            style={[styles.typeChip, typeFilter === f.key && styles.typeChipActive]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setTypeFilter(f.key);
+            }}
           >
-            <Ionicons
-              name={f.icon}
-              size={13}
-              color={typeFilter === f.key ? f.color || "#fff" : "#4a5568"}
-              style={{ marginRight: 5 }}
-            />
-            <Text
-              style={[
-                styles.typeChipText,
-                typeFilter === f.key && { color: f.color || "#fff" },
-              ]}
-            >
+            <Ionicons name={f.icon} size={14} color={typeFilter === f.key ? colors.brand : colors.textMuted} style={{ marginRight: 6 }} />
+            <Text style={[styles.typeChipText, typeFilter === f.key && styles.typeChipTextActive]}>
               {f.label}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.periodFilterScroll}
-        contentContainerStyle={styles.periodFilterContent}
-      >
-        {PERIOD_FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[
-              styles.periodChip,
-              periodFilter === f.key && styles.periodChipActive,
-            ]}
-            onPress={() => setPeriodFilter(f.key)}
+      {/* Account & Period Filters */}
+      <View style={styles.combinedFilterRow}>
+        <View style={styles.filterWrapper}>
+          <Text style={styles.filterSmallLabel}>Dompet</Text>
+          <TouchableOpacity 
+            style={[styles.filterToggle, accountFilter && styles.filterToggleActive]} 
+            onPress={() => {
+              setIsAccountExpanded(!isAccountExpanded);
+              setIsPeriodExpanded(false);
+            }}
           >
-            <Text
-              style={[
-                styles.periodChipText,
-                periodFilter === f.key && styles.periodChipTextActive,
-              ]}
-            >
-              {f.label}
+            <Text style={[styles.filterToggleLabel, accountFilter && styles.filterToggleLabelActive]} numberOfLines={1}>
+              {accountFilter ? (accounts.find(a => a.id === accountFilter)?.name || "Dompet") : "Semua"}
             </Text>
+            <Ionicons name={isAccountExpanded ? "chevron-up" : "chevron-down"} size={12} color={colors.textMuted} />
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        </View>
 
-      <View style={styles.summaryBar}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Masuk</Text>
-          <Text style={[styles.summaryValue, { color: "#00c896" }]}>
-            +{formatRupiah(totalIncome)}
-          </Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Keluar</Text>
-          <Text style={[styles.summaryValue, { color: "#ff4d6d" }]}>
-            −{formatRupiah(totalExpense)}
-          </Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Net</Text>
-          <Text
-            style={[
-              styles.summaryValue,
-              {
-                color: totalIncome - totalExpense >= 0 ? "#00c896" : "#ff4d6d",
-              },
-            ]}
+        <View style={styles.filterWrapper}>
+          <Text style={styles.filterSmallLabel}>Periode</Text>
+          <TouchableOpacity 
+            style={[styles.filterToggle, periodFilter !== 'all' && styles.filterToggleActive]} 
+            onPress={() => {
+              setIsPeriodExpanded(!isPeriodExpanded);
+              setIsAccountExpanded(false);
+            }}
           >
-            {totalIncome - totalExpense >= 0 ? "+" : "−"}
-            {formatRupiah(Math.abs(totalIncome - totalExpense))}
-          </Text>
+            <Text style={[styles.filterToggleLabel, periodFilter !== 'all' && styles.filterToggleLabelActive]}>
+              {PERIOD_FILTERS.find(f => f.key === periodFilter)?.label}
+            </Text>
+            <Ionicons name={isPeriodExpanded ? "chevron-up" : "chevron-down"} size={12} color={colors.textMuted} />
+          </TouchableOpacity>
         </View>
+
+        {isFiltered && (
+          <TouchableOpacity style={styles.resetBtn} onPress={resetAllFilters}>
+            <Ionicons name="reload-outline" size={16} color={colors.expense} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7c6aff" />
-        </View>
-      ) : loadError ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="cloud-offline-outline" size={56} color="#ff4d6d33" />
-          <Text style={styles.emptyTitle}>Gagal Memuat Data</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
-            <Text style={styles.retryBtnText}>Coba Lagi</Text>
+      {/* Expansion Lists */}
+      {isAccountExpanded && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.expansionScroll} contentContainerStyle={styles.expansionContent}>
+          <TouchableOpacity 
+            style={[styles.periodChip, !accountFilter && styles.periodChipActive]}
+            onPress={() => { setAccountFilter(null); setIsAccountExpanded(false); }}
+          >
+            <Text style={[styles.periodChipText, !accountFilter && styles.periodChipTextActive]}>Semua</Text>
           </TouchableOpacity>
+          {accounts.map(acc => (
+            <TouchableOpacity 
+              key={acc.id} 
+              style={[styles.periodChip, accountFilter === acc.id && { backgroundColor: acc.color, borderColor: acc.color }]}
+              onPress={() => { setAccountFilter(acc.id); setIsAccountExpanded(false); }}
+            >
+              <Text style={[styles.periodChipText, accountFilter === acc.id && styles.periodChipTextActive]}>{acc.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {isPeriodExpanded && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.expansionScroll} contentContainerStyle={styles.expansionContent}>
+          {PERIOD_FILTERS.map(f => (
+            <TouchableOpacity 
+              key={f.key} 
+              style={[styles.periodChip, periodFilter === f.key && styles.periodChipActive]}
+              onPress={() => { setPeriodFilter(f.key); setIsPeriodExpanded(false); }}
+            >
+              <Text style={[styles.periodChipText, periodFilter === f.key && styles.periodChipTextActive]}>{f.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Summary Bar */}
+      <View style={styles.summaryBar}>
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Pemasukan</Text>
+            <Text style={[styles.summaryValue, { color: colors.income }]}>+ {formatRupiah(totalIncome)}</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Pengeluaran</Text>
+            <Text style={[styles.summaryValue, { color: colors.expense }]}>− {formatRupiah(totalExpense)}</Text>
+          </View>
         </View>
-      ) : groupedData.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="document-text-outline" size={56} color="#1a2540" />
-          <Text style={styles.emptyTitle}>Belum Ada Transaksi</Text>
+      </View>
+    </View>
+  ), [colors, styles, transactions, accounts, searchQuery, typeFilter, periodFilter, accountFilter, isAccountExpanded, isPeriodExpanded, totalIncome, totalExpense]);
+
+  const groupedTransactions = useMemo(() => {
+    const groups = {};
+    transactions.forEach(tx => {
+      const date = tx.date;
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(tx);
+    });
+    return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(date => ({
+      date,
+      data: groups[date],
+      totalIncome: groups[date].filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+      totalExpense: groups[date].filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+    }));
+  }, [transactions]);
+
+  return (
+    <SafeAreaView style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
+      <StatusBar barStyle={colors.bgPrimary === '#ffffff' ? 'dark-content' : 'light-content'} />
+      
+      <FlatList
+        data={groupedTransactions}
+        keyExtractor={(item) => item.date}
+        ListHeaderComponent={renderHeader}
+        renderItem={({ item }) => (
+          <View key={item.date}>
+            <View style={styles.dateHeader}>
+              <Text style={styles.dateHeaderText}>{formatDate(item.date)}</Text>
+              <View style={styles.dateSummary}>
+                {item.totalIncome > 0 && <Text style={styles.dateIncome}>+{formatRupiah(item.totalIncome)}</Text>}
+                {item.totalExpense > 0 && <Text style={styles.dateExpense}>−{formatRupiah(item.totalExpense)}</Text>}
+              </View>
+            </View>
+            {item.data.map(tx => (
+              <TransactionCard 
+                key={tx.id}
+                item={tx} 
+                onPress={(t) => navigation.navigate("Transaction", { editTx: t })}
+                onLongPress={handleDeletePress}
+              />
+            ))}
+          </View>
+        )}
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={56} color={colors.bgElevated} />
+              <Text style={styles.emptyTitle}>Tidak ada transaksi</Text>
+            </View>
+          )
+        }
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
+      />
+
+      {loading && !refreshing && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
-      ) : (
-        <FlatList
-          data={groupedData}
-          renderItem={renderItem}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: 30,
-            paddingTop: 8,
-          }}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={12}
-          maxToRenderPerBatch={10}
-          windowSize={7}
-        />
       )}
 
       <BottomSheetModal
         visible={deleteModalVisible}
         onClose={() => setDeleteModalVisible(false)}
-        title="Batalkan Transaksi?"
+        title="Hapus Transaksi?"
         iconName="trash-outline"
-        iconColor={Colors.expense}
         primaryBtnText="Hapus"
-        primaryBtnIcon="trash"
         primaryBtnAction={executeDelete}
-        primaryBtnColor={Colors.expense}
+        primaryBtnColor={colors.expense}
       >
-        {txToDelete && (
-          <Text style={styles.sheetBody}>
-            Transaksi{" "}
-            <Text style={styles.sheetBold}>
-              {txToDelete.category_name || "Transfer"}
-            </Text>{" "}
-            senilai{" "}
-            <Text style={styles.sheetAmount}>
-              {formatRupiahFull(txToDelete.amount)}
-            </Text>{" "}
-            akan dihapus permanen.
-            {"\n\n"}Saldo rekening{" "}
-            <Text style={styles.sheetBold}>{txToDelete.account_name}</Text> akan
-            disesuaikan secara otomatis.
-          </Text>
-        )}
+        <View style={styles.modalBody}>
+          <Text style={[styles.modalDesc, { color: colors.textSecondary }]}>Hapus transaksi ini secara permanen?</Text>
+          {txToDelete && (
+            <View style={[styles.modalPreview, { backgroundColor: colors.bgPrimary }]}>
+              <Text style={[styles.modalCat, { color: colors.textPrimary }]}>{txToDelete.category_name || 'Transfer'}</Text>
+              <Text style={[styles.modalAmt, { color: txToDelete.type === 'expense' ? colors.expense : colors.income }]}>
+                {txToDelete.type === 'expense' ? '-' : '+'}{formatRupiahFull(txToDelete.amount)}
+              </Text>
+            </View>
+          )}
+        </View>
       </BottomSheetModal>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#060d1a" },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
-    gap: 10,
+const makeStyles = (colors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgPrimary },
+  searchRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
+  searchBox: { 
+    flex: 1, flexDirection: 'row', alignItems: 'center', 
+    paddingHorizontal: 12, height: 44, borderRadius: 12, 
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
   },
-  searchBar: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0d1526",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === "ios" ? 10 : 6,
-    borderWidth: 1,
-    borderColor: "#1a2540",
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.textPrimary },
+  exportBtn: { 
+    width: 44, height: 44, borderRadius: 12, borderWidth: 1, 
+    justifyContent: 'center', alignItems: 'center',
+    borderColor: colors.border, backgroundColor: colors.bgCard
   },
-  searchInput: { flex: 1, color: "#e8edf5", fontSize: 14 },
-  exportBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: "#002d22",
-    borderWidth: 1,
-    borderColor: "#00c896",
-    justifyContent: "center",
-    alignItems: "center",
+  filterScroll: { marginBottom: 12 },
+  filterContent: { paddingHorizontal: 16, gap: 10 },
+  typeChip: { 
+    flexDirection: 'row', alignItems: 'center', 
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, 
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
   },
-  typeFilterScroll: { flexShrink: 0, flexGrow: 0, marginBottom: 6 },
-  typeFilterContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    alignItems: "center",
+  typeChipActive: { backgroundColor: colors.brandBg, borderColor: colors.brand },
+  typeChipText: { fontSize: 12, color: colors.textMuted },
+  typeChipTextActive: { color: colors.brand, fontWeight: "700" },
+
+  combinedFilterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 16, alignItems: 'flex-end' },
+  filterWrapper: { flex: 1 },
+  filterSmallLabel: { fontSize: 10, fontWeight: '700', marginBottom: 4, marginLeft: 4, color: colors.textMuted },
+  filterToggle: { 
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
+    paddingHorizontal: 12, height: 40, borderRadius: 10, 
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
   },
-  typeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    marginRight: 8,
-    backgroundColor: "#0d1526",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#1a2540",
+  filterToggleActive: { backgroundColor: colors.brandBg, borderColor: colors.brand },
+  filterToggleLabel: { fontSize: 12, flex: 1, color: colors.textMuted },
+  filterToggleLabelActive: { color: colors.textPrimary, fontWeight: '700' },
+
+  resetBtn: { 
+    width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: colors.expense + '20'
   },
-  typeChipActive: { backgroundColor: "#1a1040", borderColor: "#7c6aff" },
-  typeChipText: { color: "#4a5568", fontSize: 12, fontWeight: "600" },
-  periodFilterScroll: { flexShrink: 0, flexGrow: 0, marginBottom: 10 },
-  periodFilterContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    alignItems: "center",
+  expansionScroll: { marginBottom: 16 },
+  expansionContent: { paddingHorizontal: 16, gap: 8 },
+  periodChip: { 
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12, 
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
   },
-  periodChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-    backgroundColor: "#0d1526",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#1a2540",
-    alignSelf: "flex-start",
+  periodChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  periodChipText: { color: colors.textMuted },
+  periodChipTextActive: { color: '#fff' },
+
+  summaryBar: { 
+    marginHorizontal: 16, borderRadius: 16, padding: 16, marginBottom: 16, 
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
   },
-  periodChipActive: { backgroundColor: "#7c6aff", borderColor: "#7c6aff" },
-  periodChipText: { color: "#4a5568", fontSize: 11, fontWeight: "600" },
-  periodChipTextActive: { color: "#fff" },
-  summaryBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: "#0d1526",
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#1a2540",
+  summaryRow: { flexDirection: 'row', alignItems: 'center' },
+  summaryItem: { flex: 1, alignItems: 'center' },
+  summaryLabel: { fontSize: 10, fontWeight: '700', marginBottom: 4, color: colors.textMuted },
+  summaryValue: { fontSize: 14, fontWeight: '800' },
+  summaryDivider: { width: 1, height: 24, marginHorizontal: 10, backgroundColor: colors.border },
+  
+  dateHeader: { 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12, marginTop: 8,
+    backgroundColor: colors.bgPrimary
   },
-  summaryItem: { flex: 1, alignItems: "center" },
-  summaryLabel: {
-    color: "#4a5568",
-    fontSize: 10,
-    fontWeight: "600",
-    marginBottom: 3,
-  },
-  summaryValue: { fontSize: 12, fontWeight: "700" },
-  summaryDivider: { width: 1, height: 28, backgroundColor: "#1a2540" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyState: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    color: "#2a3550",
-    fontSize: 16,
-    fontWeight: "700",
-    marginTop: 16,
-  },
-  retryBtn: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: "#1a1040",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#7c6aff",
-  },
-  retryBtnText: { color: "#7c6aff", fontSize: 13, fontWeight: "700" },
-  dateHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 16,
-    marginBottom: 6,
-  },
-  dateDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#7c6aff",
-    marginRight: 8,
-  },
-  dateHeaderText: {
-    color: "#8892a4",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  sheetTitle: {
-    color: "#e8edf5",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  sheetBody: {
-    color: "#8892a4",
-    fontSize: 14,
-    lineHeight: 22,
-    marginBottom: 26,
-    textAlign: "center",
-  },
-  sheetBold: { color: "#e8edf5", fontWeight: "700" },
-  sheetAmount: { color: "#ff4d6d", fontWeight: "700" },
-  sheetBtns: { flexDirection: "row", gap: 10 },
-  btnSecondary: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#1a2540",
-    alignItems: "center",
-  },
-  btnSecondaryText: { color: "#8892a4", fontWeight: "600", fontSize: 15 },
-  btnDanger: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#ff4d6d",
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  btnDangerText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  dateHeaderText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  dateSummary: { flexDirection: 'row', gap: 10 },
+  dateIncome: { fontSize: 11, fontWeight: '700', color: colors.income },
+  dateExpense: { fontSize: 11, fontWeight: '700', color: colors.expense },
+  
+  listContent: { paddingBottom: 100 },
+  emptyState: { alignItems: 'center', padding: 60 },
+  emptyTitle: { marginTop: 16, fontSize: 15, fontWeight: '600', color: colors.textSecondary },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.1)', justifyContent: 'center', alignItems: 'center' },
+  modalBody: { padding: 16 },
+  modalDesc: { fontSize: 14, textAlign: 'center', marginBottom: 16, color: colors.textSecondary },
+  modalPreview: { padding: 16, borderRadius: 12, alignItems: 'center', backgroundColor: colors.bgPrimary },
+  modalCat: { fontSize: 16, fontWeight: '700', marginBottom: 4, color: colors.textPrimary },
+  modalAmt: { fontSize: 20, fontWeight: '800' },
 });

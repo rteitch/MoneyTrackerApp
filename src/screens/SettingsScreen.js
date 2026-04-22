@@ -1,17 +1,32 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Alert, Switch, Modal
-} from 'react-native';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useFocusEffect } from '@react-navigation/native';
-import {
-  getCategories, deleteCategory, addSubCategory,
-  getSubCategories, deleteSubCategory, getAccounts, factoryReset, updateAccountBalance
-} from '../db/database';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppContext } from '../context/AppContext';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
+import { useSQLiteContext } from 'expo-sqlite';
+import React, { useCallback, useState } from 'react';
+import {
+    Alert,
+    Modal, RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import StatusModal from '../components/StatusModal';
+import { useAppActions, useAppContext } from '../context/AppContext';
+import {
+    addSubCategory,
+    deleteCategory,
+    deleteSubCategory,
+    factoryReset,
+    getAccounts,
+    getCategories,
+    getSubCategories,
+    updateAccountBalance
+} from '../db/database';
+import { formatCurrencyInput, parseCurrencyRaw } from '../utils/formatting';
 
 const WALLET_TYPES = [
   { key: 'cash', label: 'Tunai', icon: 'wallet', color: '#00c896' },
@@ -26,27 +41,23 @@ const WALLET_COLORS = [
   '#14b8a6', '#f97316', '#ec4899', '#a78bfa', '#3b82f6',
 ];
 
-function Section({ title, subtitle, children }) {
+function Section({ title, subtitle, children, styles }) {
   return (
-    <View style={sectionStyles.wrap}>
-      <Text style={sectionStyles.title}>{title}</Text>
-      {subtitle && <Text style={sectionStyles.sub}>{subtitle}</Text>}
+    <View style={styles.sectionWrap}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {subtitle && <Text style={styles.sectionSub}>{subtitle}</Text>}
       {children}
     </View>
   );
 }
-const sectionStyles = StyleSheet.create({
-  wrap: {
-    backgroundColor: '#0d1526', borderRadius: 18, padding: 20,
-    marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: '#1a2540',
-  },
-  title: { color: '#e8edf5', fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  sub: { color: '#4a5568', fontSize: 12, marginBottom: 16, lineHeight: 18 },
-});
 
 export default function SettingsScreen() {
   const db = useSQLiteContext();
-  const { userName: globalUserName, setUserName: setGlobalUserName } = useAppContext();
+  const { userName: globalUserName, colors, themeMode } = useAppContext();
+  const { setUserName, setThemeMode } = useAppActions();
+  
+  // Generate dynamic styles based on theme
+  const styles = makeStyles(colors);
 
   const [inputUserName, setInputUserName] = useState('');
   const [walletName, setWalletName] = useState('');
@@ -69,6 +80,7 @@ export default function SettingsScreen() {
   
   const [isResetModalVisible, setResetModalVisible] = useState(false);
   const [statusModal, setStatusModal] = useState({ visible: false, title: '', message: '', type: 'info' });
+  const [refreshing, setRefreshing] = useState(false);
 
   const showStatus = (title, message, type) => {
     setStatusModal({ visible: true, title, message, type });
@@ -113,15 +125,27 @@ export default function SettingsScreen() {
     return () => { cancelled.current = true; };
   }, [loadData]));
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
   const handleSaveUser = async () => {
     if (!inputUserName.trim()) return showStatus('Error', 'Nama tidak boleh kosong.', 'error');
     try {
-      await setGlobalUserName(inputUserName);
+      await setUserName(inputUserName);
       showStatus('Sukses', 'Profil berhasil disimpan.', 'success');
     } catch (e) {
       console.error('handleSaveUser error:', e);
       showStatus('Gagal Menyimpan', 'Nama tidak dapat disimpan. Silakan coba lagi.', 'error');
     }
+  };
+
+  const handleThemeChange = async (mode) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await setThemeMode(mode);
   };
 
   const handleFactoryReset = () => {
@@ -151,7 +175,7 @@ export default function SettingsScreen() {
 
   const handleAddOrUpdateWallet = async () => {
     if (!walletName.trim()) return showStatus('Error', 'Nama dompet wajib diisi.', 'error');
-    const bal = parseInt(initialBalance.replace(/[^0-9]/g, ''), 10) || 0;
+    const bal = parseCurrencyRaw(initialBalance);
     const isExcluded = excludeFromTotal || walletType === 'investment' || walletType === 'credit' ? 1 : 0;
     try {
       if (editWalletId) {
@@ -193,7 +217,7 @@ export default function SettingsScreen() {
           setWalletName(acc.name);
           setWalletType(acc.type);
           setWalletColor(acc.color);
-          setInitialBalance('Rp ' + (acc.initial_balance || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+          setInitialBalance(formatCurrencyInput((acc.initial_balance || 0).toString()));
           setExcludeFromTotal(acc.exclude_from_total === 1);
       }},
       { text: 'Hapus / Nonaktifkan', style: 'destructive', onPress: () => handleDeleteAccount(acc) },
@@ -284,11 +308,24 @@ export default function SettingsScreen() {
   const TABS = [
     { key: 'wallet', label: 'Dompet', icon: 'wallet' },
     { key: 'category', label: 'Kategori', icon: 'pricetag' },
+    { key: 'appearance', label: 'Tampilan', icon: 'color-palette' },
     { key: 'profile', label: 'Profil', icon: 'person' },
   ];
 
   return (
-    <ScrollView style={styles.root} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+    <ScrollView
+      style={styles.root}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 80 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.brand}
+          colors={[colors.brand]}
+        />
+      }
+    >
       <Text style={styles.pageTitle}>Pengaturan</Text>
 
       {/* Tab Switcher */}
@@ -296,11 +333,11 @@ export default function SettingsScreen() {
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            style={[styles.tab, activeTab === tab.key && { backgroundColor: colors.brand + '1a' }]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Ionicons name={tab.icon} size={16} color={activeTab === tab.key ? '#7c6aff' : '#4a5568'} />
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
+            <Ionicons name={tab.icon} size={16} color={activeTab === tab.key ? colors.brand : colors.textMuted} />
+            <Text style={[styles.tabText, { color: activeTab === tab.key ? colors.brand : colors.textMuted }]}>{tab.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -308,11 +345,15 @@ export default function SettingsScreen() {
       {/* WALLET TAB */}
       {activeTab === 'wallet' && (
         <>
-          <Section title={editWalletId ? "Edit Dompet" : "Tambah Dompet Baru"} subtitle={editWalletId ? "Perubahan nominal awal akan mengkalkulasi ulang saldo." : "Pilih tipe dan warna untuk identifikasi dompet."}>
+          <Section 
+            styles={styles}
+            title={editWalletId ? "Edit Dompet" : "Tambah Dompet Baru"} 
+            subtitle={editWalletId ? "Perubahan nominal awal akan mengkalkulasi ulang saldo." : "Pilih tipe dan warna untuk identifikasi dompet."}
+          >
             <TextInput
               style={styles.input}
               placeholder="Nama dompet (cth: BCA Tabungan)"
-              placeholderTextColor="#2a3550"
+              placeholderTextColor={colors.textFaint}
               value={walletName}
               onChangeText={setWalletName}
             />
@@ -324,7 +365,7 @@ export default function SettingsScreen() {
                   style={[styles.typeChip, walletType === t.key && { borderColor: t.color, backgroundColor: t.color + '1a' }]}
                   onPress={() => { setWalletType(t.key); setWalletColor(t.color); }}
                 >
-                  <Ionicons name={t.icon} size={14} color={walletType === t.key ? t.color : '#4a5568'} />
+                  <Ionicons name={t.icon} size={14} color={walletType === t.key ? t.color : colors.textMuted} />
                   <Text style={[styles.typeChipText, walletType === t.key && { color: t.color }]}>{t.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -344,13 +385,9 @@ export default function SettingsScreen() {
               style={styles.input}
               keyboardType="number-pad"
               placeholder="Rp 0"
-              placeholderTextColor="#2a3550"
+              placeholderTextColor={colors.textFaint}
               value={initialBalance}
-              onChangeText={(text) => {
-                const raw = text.replace(/[^0-9]/g, '');
-                if (!raw) return setInitialBalance('');
-                setInitialBalance('Rp ' + parseInt(raw, 10).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
-              }}
+              onChangeText={(text) => setInitialBalance(formatCurrencyInput(text))}
             />
             <View style={styles.switchRow}>
               <View style={{ flex: 1 }}>
@@ -360,24 +397,24 @@ export default function SettingsScreen() {
               <Switch
                 value={excludeFromTotal}
                 onValueChange={setExcludeFromTotal}
-                trackColor={{ false: '#1a2540', true: '#7c6aff' }}
-                thumbColor={excludeFromTotal ? '#fff' : '#4a5568'}
+                trackColor={{ false: colors.bgElevated, true: colors.brand }}
+                thumbColor={excludeFromTotal ? '#fff' : colors.textMuted}
               />
             </View>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               {editWalletId && (
-                <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: '#1a2540', flex: 1 }]} onPress={cancelEditWallet}>
-                  <Text style={[styles.btnPrimaryText, { color: '#ff4d6d' }]}>Batal</Text>
+                <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.bgElevated, flex: 1 }]} onPress={cancelEditWallet}>
+                  <Text style={[styles.btnPrimaryText, { color: colors.expense }]}>Batal</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={[styles.btnPrimary, { flex: 2 }]} onPress={handleAddOrUpdateWallet}>
+              <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.income, flex: 2 }]} onPress={handleAddOrUpdateWallet}>
                 <Ionicons name={editWalletId ? 'save' : 'add-circle'} size={18} color="#fff" />
                 <Text style={styles.btnPrimaryText}>{editWalletId ? 'Update Dompet' : 'Simpan Dompet Baru'}</Text>
               </TouchableOpacity>
             </View>
           </Section>
 
-          <Section title="Dompet Aktif" subtitle="Ketuk untuk mengedit atau menghapus.">
+          <Section styles={styles} title="Dompet Aktif" subtitle="Ketuk untuk mengedit atau menghapus.">
             {accounts.map(acc => (
               <TouchableOpacity
                 key={acc.id}
@@ -403,25 +440,25 @@ export default function SettingsScreen() {
       {/* CATEGORY TAB */}
       {activeTab === 'category' && (
         <>
-          <Section title="Tambah Kategori Induk" subtitle="Buat kategori kustom untuk transaksi Anda.">
+          <Section styles={styles} title="Tambah Kategori Induk" subtitle="Buat kategori kustom untuk transaksi Anda.">
             <View style={styles.pillRow}>
               <TouchableOpacity
-                style={[styles.pill, catType === 'expense' && { borderColor: '#ff4d6d', backgroundColor: '#ff4d6d1a' }]}
+                style={[styles.pill, catType === 'expense' && { borderColor: colors.expense, backgroundColor: colors.expense + '1a' }]}
                 onPress={() => { setCatType('expense'); setParentCatId(null); }}
               >
-                <Text style={[styles.pillText, catType === 'expense' && { color: '#ff4d6d' }]}>Pengeluaran</Text>
+                <Text style={[styles.pillText, catType === 'expense' && { color: colors.expense }]}>Pengeluaran</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.pill, catType === 'income' && { borderColor: '#00c896', backgroundColor: '#00c8961a' }]}
+                style={[styles.pill, catType === 'income' && { borderColor: colors.income, backgroundColor: colors.income + '1a' }]}
                 onPress={() => { setCatType('income'); setParentCatId(null); }}
               >
-                <Text style={[styles.pillText, catType === 'income' && { color: '#00c896' }]}>Pemasukan</Text>
+                <Text style={[styles.pillText, catType === 'income' && { color: colors.income }]}>Pemasukan</Text>
               </TouchableOpacity>
             </View>
             <TextInput
               style={styles.input}
               placeholder="Nama kategori baru..."
-              placeholderTextColor="#2a3550"
+              placeholderTextColor={colors.textFaint}
               value={catName}
               onChangeText={setCatName}
             />
@@ -434,18 +471,18 @@ export default function SettingsScreen() {
                 <Switch
                   value={isFixed}
                   onValueChange={setIsFixed}
-                  trackColor={{ false: '#1a2540', true: '#7c6aff' }}
-                  thumbColor={isFixed ? '#fff' : '#4a5568'}
+                  trackColor={{ false: colors.bgElevated, true: colors.brand }}
+                  thumbColor={isFixed ? '#fff' : colors.textMuted}
                 />
               </View>
             )}
-            <TouchableOpacity style={styles.btnPrimary} onPress={handleAddCategory}>
+            <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.brand }]} onPress={handleAddCategory}>
               <Ionicons name="add-circle" size={18} color="#fff" />
               <Text style={styles.btnPrimaryText}>Tambah Kategori</Text>
             </TouchableOpacity>
           </Section>
 
-          <Section title={`Kategori ${catType === 'expense' ? 'Pengeluaran' : 'Pemasukan'}`} subtitle="Ketuk untuk pilih dan kelola subkategori.">
+          <Section styles={styles} title={`Kategori ${catType === 'expense' ? 'Pengeluaran' : 'Pemasukan'}`} subtitle="Ketuk untuk pilih dan kelola subkategori.">
             {existingCats.map(c => (
               <TouchableOpacity
                 key={c.id}
@@ -459,7 +496,7 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => handleDeleteCat(c.id, c.name)} style={styles.deleteBtnSmall}>
-                  <Ionicons name="trash-outline" size={14} color="#ff4d6d" />
+                  <Ionicons name="trash-outline" size={14} color={colors.expense} />
                 </TouchableOpacity>
               </TouchableOpacity>
             ))}
@@ -467,23 +504,23 @@ export default function SettingsScreen() {
           </Section>
 
           {parentCatId !== null && (
-            <Section title="Sub-Kategori" subtitle={`Subkategori untuk: ${existingCats.find(c => c.id === parentCatId)?.name || ''}`}>
+            <Section styles={styles} title="Sub-Kategori" subtitle={`Subkategori untuk: ${existingCats.find(c => c.id === parentCatId)?.name || ''}`}>
               {existingSubs.map(s => (
                 <View key={s.id} style={styles.subRow}>
                   <Text style={styles.subName}>· {s.name}</Text>
                   <TouchableOpacity onPress={() => handleDeleteSub(s.id, s.name)} style={styles.deleteBtnSmall}>
-                    <Ionicons name="close-circle" size={16} color="#ff4d6d" />
+                    <Ionicons name="close-circle" size={16} color={colors.expense} />
                   </TouchableOpacity>
                 </View>
               ))}
               <TextInput
                 style={[styles.input, { marginTop: 8 }]}
                 placeholder="Nama subkategori baru..."
-                placeholderTextColor="#2a3550"
+                placeholderTextColor={colors.textFaint}
                 value={subCatName}
                 onChangeText={setSubCatName}
               />
-              <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: '#7c6aff' }]} onPress={handleAddSub}>
+              <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.brand }]} onPress={handleAddSub}>
                 <Ionicons name="add-circle" size={18} color="#fff" />
                 <Text style={styles.btnPrimaryText}>Tambah Subkategori</Text>
               </TouchableOpacity>
@@ -492,36 +529,66 @@ export default function SettingsScreen() {
         </>
       )}
 
+      {/* APPEARANCE TAB */}
+      {activeTab === 'appearance' && (
+        <>
+          <Section styles={styles} title="Tema Aplikasi" subtitle="Pilih suasana aplikasi yang paling nyaman untuk mata Anda.">
+            <View style={styles.themeGrid}>
+              {[
+                { key: 'dark', label: 'Dark Mode', icon: 'moon' },
+                { key: 'light', label: 'Light Mode', icon: 'sunny' },
+                { key: 'system', label: 'Ikuti Sistem', icon: 'laptop' },
+              ].map(t => (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[
+                    styles.themeCard, 
+                    themeMode === t.key && { borderColor: colors.brand, backgroundColor: colors.brand + '10' }
+                  ]}
+                  onPress={() => handleThemeChange(t.key)}
+                >
+                  <View style={[styles.themeIcon, { backgroundColor: themeMode === t.key ? colors.brand : colors.bgElevated }]}>
+                    <Ionicons name={t.icon} size={20} color={themeMode === t.key ? '#fff' : colors.textSecondary} />
+                  </View>
+                  <Text style={[styles.themeLabel, themeMode === t.key && { color: colors.brand }]}>{t.label}</Text>
+                  {themeMode === t.key && <Ionicons name="checkmark-circle" size={16} color={colors.brand} style={styles.themeCheck} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Section>
+        </>
+      )}
+
       {/* PROFILE TAB */}
       {activeTab === 'profile' && (
         <>
-          <Section title="Profil Pengguna" subtitle="Nama ini ditampilkan sebagai sapaan di beranda.">
+          <Section styles={styles} title="Profil Pengguna" subtitle="Nama ini ditampilkan sebagai sapaan di beranda.">
             <TextInput
               style={styles.input}
               placeholder="Nama Anda"
-              placeholderTextColor="#2a3550"
+              placeholderTextColor={colors.textFaint}
               value={inputUserName}
               onChangeText={setInputUserName}
             />
-            <TouchableOpacity style={styles.btnPrimary} onPress={handleSaveUser}>
+            <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.brand }]} onPress={handleSaveUser}>
               <Ionicons name="save" size={18} color="#fff" />
               <Text style={styles.btnPrimaryText}>Simpan Nama</Text>
             </TouchableOpacity>
           </Section>
 
           <View style={[styles.infoCard, { marginBottom: 20 }]}>
-            <Ionicons name="information-circle-outline" size={20} color="#4a5568" style={{ marginBottom: 8 }} />
-            <Text style={styles.infoTitle}>MoneyTracker v1.0</Text>
+            <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} style={{ marginBottom: 8 }} />
+            <Text style={styles.infoTitle}>MoneyTracker v1.1</Text>
             <Text style={styles.infoText}>Aplikasi pencatat keuangan pribadi offline. Data tersimpan aman di perangkat Anda.</Text>
-            <Text style={{ marginTop: 12, color: '#7c6aff', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>DEVELOPED BY RTEITCH</Text>
+            <Text style={{ marginTop: 12, color: colors.brand, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>DEVELOPED BY RTEITCH</Text>
           </View>
 
           <View style={styles.dangerCard}>
             <Text style={styles.dangerTitle}>Zona Berbahaya</Text>
             <Text style={styles.dangerSub}>Hapus riwayat transaksi tapi pertahankan dompet & kategori.</Text>
-            <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: '#ff4d6d15', borderWidth: 1, borderColor: '#ff4d6d' }]} onPress={handleFactoryReset}>
-              <Ionicons name="trash" size={18} color="#ff4d6d" />
-              <Text style={[styles.btnPrimaryText, { color: '#ff4d6d' }]}>Bersihkan Riwayat Transaksi</Text>
+            <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.expense + '15', borderWidth: 1, borderColor: colors.expense }]} onPress={handleFactoryReset}>
+              <Ionicons name="trash" size={18} color={colors.expense} />
+              <Text style={[styles.btnPrimaryText, { color: colors.expense }]}>Bersihkan Riwayat Transaksi</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -536,25 +603,25 @@ export default function SettingsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalIconBox}>
-              <Ionicons name="warning" size={32} color="#ff4d6d" />
+            <View style={[styles.modalIconBox, { backgroundColor: colors.expense + '15' }]}>
+              <Ionicons name="warning" size={32} color={colors.expense} />
             </View>
             <Text style={styles.modalTitle}>Hapus Riwayat?</Text>
             <Text style={styles.modalDesc}>
-              Semua <Text style={{ color: '#e8edf5', fontWeight: '700' }}>RIWAYAT TRANSAKSI</Text> akan dihapus permanen. Saldo dompet akan di-reset ke nilai awal.
+              Semua <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>RIWAYAT TRANSAKSI</Text> akan dihapus permanen. Saldo dompet akan di-reset ke nilai awal.
               {'\n\n'}
-              <Text style={{ fontStyle: 'italic', color: '#00c896' }}>Dompet & Kategori Anda tetap aman.</Text>
+              <Text style={{ fontStyle: 'italic', color: colors.income }}>Dompet & Kategori Anda tetap aman.</Text>
             </Text>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: '#1a2540' }]}
+                style={[styles.modalBtn, { backgroundColor: colors.bgElevated }]}
                 onPress={() => setResetModalVisible(false)}
               >
-                <Text style={[styles.modalBtnText, { color: '#e8edf5' }]}>Batal</Text>
+                <Text style={[styles.modalBtnText, { color: colors.textPrimary }]}>Batal</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: '#ff4d6d' }]}
+                style={[styles.modalBtn, { backgroundColor: colors.expense }]}
                 onPress={confirmReset}
               >
                 <Text style={[styles.modalBtnText, { color: '#fff' }]}>Ya, Hapus</Text>
@@ -576,112 +643,128 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#060d1a' },
-  pageTitle: { color: '#e8edf5', fontSize: 20, fontWeight: '800', marginLeft: 20, marginTop: 16, marginBottom: 16 },
+const makeStyles = (colors) => StyleSheet.create({
+  root: { flex: 1 },
+  pageTitle: { fontSize: 20, fontWeight: '800', marginLeft: 20, marginTop: 16, marginBottom: 16, color: colors.textPrimary },
 
   tabs: {
-    flexDirection: 'row', marginHorizontal: 16, backgroundColor: '#0d1526',
-    borderRadius: 14, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: '#1a2540',
+    flexDirection: 'row', marginHorizontal: 16,
+    borderRadius: 14, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgCard,
   },
   tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10, gap: 6 },
-  tabActive: { backgroundColor: '#7c6aff1a' },
-  tabText: { color: '#4a5568', fontSize: 13, fontWeight: '600' },
-  tabTextActive: { color: '#7c6aff' },
+  tabText: { fontSize: 11, fontWeight: '700' },
+
+  sectionWrap: {
+    borderRadius: 18, padding: 20,
+    marginHorizontal: 16, marginBottom: 16, borderWidth: 1,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4, color: colors.textPrimary },
+  sectionSub: { fontSize: 12, marginBottom: 16, lineHeight: 18, color: colors.textSecondary },
 
   input: {
-    backgroundColor: '#060d1a', color: '#e8edf5', padding: 14,
-    borderRadius: 12, marginBottom: 14, borderWidth: 1, borderColor: '#1a2540', fontSize: 14,
+    padding: 14, borderRadius: 12, marginBottom: 14, borderWidth: 1, fontSize: 14,
+    backgroundColor: colors.bgPrimary, color: colors.textPrimary, borderColor: colors.border,
   },
-  fieldLabel: { color: '#8892a4', fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5 },
+  fieldLabel: { fontSize: 11, fontWeight: '700', marginBottom: 8, letterSpacing: 0.5, color: colors.textSecondary },
 
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   typeChip: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 10, borderWidth: 1, borderColor: '#1a2540', gap: 6,
+    borderRadius: 10, borderWidth: 1, borderColor: colors.border, gap: 6,
   },
-  typeChipText: { color: '#4a5568', fontSize: 12, fontWeight: '600' },
+  typeChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
 
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   colorDot: { width: 28, height: 28, borderRadius: 14 },
-  colorDotActive: { borderWidth: 3, borderColor: '#fff', transform: [{ scale: 1.15 }] },
+  colorDotActive: { borderWidth: 3, borderColor: colors.textPrimary, transform: [{ scale: 1.15 }] },
 
   switchRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#060d1a', padding: 14, borderRadius: 12, marginBottom: 14,
+    backgroundColor: colors.bgPrimary, padding: 14, borderRadius: 12, marginBottom: 14,
   },
-  switchLabel: { color: '#e8edf5', fontSize: 13, fontWeight: '600' },
-  switchSub: { color: '#4a5568', fontSize: 11, marginTop: 3, lineHeight: 15 },
+  switchLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  switchSub: { color: colors.textMuted, fontSize: 11, marginTop: 3, lineHeight: 15 },
 
   btnPrimary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#00c896', padding: 14, borderRadius: 12, gap: 8,
+    backgroundColor: colors.income, padding: 14, borderRadius: 12, gap: 8,
   },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
   accItem: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#1a2540',
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   accDot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
-  accName: { color: '#e8edf5', fontSize: 14, fontWeight: '600' },
-  accType: { color: '#4a5568', fontSize: 11, marginTop: 2 },
+  accName: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  accType: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
   accBalance: { fontSize: 13, fontWeight: '700' },
 
   pillRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   pill: {
     flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10,
-    borderWidth: 1, borderColor: '#1a2540',
+    borderWidth: 1, borderColor: colors.border,
   },
-  pillText: { color: '#4a5568', fontSize: 13, fontWeight: '700' },
+  pillText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
 
   catRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 11,
-    borderBottomWidth: 1, borderBottomColor: '#1a2540', paddingHorizontal: 4,
+    borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 4,
   },
-  catRowActive: { backgroundColor: '#7c6aff1a', borderRadius: 8, paddingHorizontal: 10, marginHorizontal: -6 },
-  catName: { color: '#e8edf5', fontSize: 13, fontWeight: '600' },
-  fixedTag: { color: '#f59e0b', fontSize: 11, fontWeight: '600' },
+  catRowActive: { backgroundColor: colors.brand + '1a', borderRadius: 8, paddingHorizontal: 10, marginHorizontal: -6 },
+  catName: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  fixedTag: { color: colors.warning, fontSize: 11, fontWeight: '600' },
 
   subRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1a2540',
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  subName: { color: '#8892a4', fontSize: 13 },
+  subName: { color: colors.textSecondary, fontSize: 13 },
 
   deleteBtnSmall: { padding: 6 },
 
   infoCard: {
-    marginHorizontal: 16, backgroundColor: '#0d1526', borderRadius: 14,
-    padding: 20, alignItems: 'center', borderWidth: 1, borderColor: '#1a2540',
+    marginHorizontal: 16, backgroundColor: colors.bgCard, borderRadius: 14,
+    padding: 20, alignItems: 'center', borderWidth: 1, borderColor: colors.border,
   },
-  infoTitle: { color: '#e8edf5', fontWeight: '700', fontSize: 14, marginBottom: 6 },
-  infoText: { color: '#4a5568', fontSize: 12, textAlign: 'center', lineHeight: 18 },
+  infoTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 14, marginBottom: 6 },
+  infoText: { color: colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 
   dangerCard: {
-    marginHorizontal: 16, backgroundColor: '#1a0d15', borderRadius: 18,
-    padding: 20, marginBottom: 30, borderWidth: 1, borderColor: '#ff4d6d33',
+    marginHorizontal: 16, backgroundColor: colors.expense + '08', borderRadius: 18,
+    padding: 20, marginBottom: 30, borderWidth: 1, borderColor: colors.expense + '33',
   },
-  dangerTitle: { color: '#ff4d6d', fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  dangerSub: { color: '#8892a4', fontSize: 12, marginBottom: 16, lineHeight: 18 },
+  dangerTitle: { color: colors.expense, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  dangerSub: { color: colors.textSecondary, fontSize: 12, marginBottom: 16, lineHeight: 18 },
 
-  empty: { color: '#2a3550', fontStyle: 'italic', fontSize: 13, paddingVertical: 8, textAlign: 'center' },
+  empty: { color: colors.textFaint, fontStyle: 'italic', fontSize: 13, paddingVertical: 8, textAlign: 'center' },
 
   // Modal styles
+  themeGrid: { flexDirection: 'row', gap: 10 },
+  themeCard: { 
+    flex: 1, padding: 16, borderRadius: 16, borderWidth: 1, alignItems: 'center',
+    position: 'relative', overflow: 'hidden', backgroundColor: colors.bgPrimary,
+  },
+  themeIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  themeLabel: { fontSize: 10, fontWeight: '700', textAlign: 'center', color: colors.textPrimary },
+  themeCheck: { position: 'absolute', top: 6, right: 6 },
+
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    flex: 1, backgroundColor: colors.overlay,
     justifyContent: 'center', alignItems: 'center', padding: 24,
   },
   modalContent: {
-    backgroundColor: '#0d1526', width: '100%', borderRadius: 24,
-    padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#1a2540',
+    width: '100%', borderRadius: 24,
+    padding: 24, alignItems: 'center', borderWidth: 1, backgroundColor: colors.bgCard, borderColor: colors.border,
   },
   modalIconBox: {
-    width: 64, height: 64, borderRadius: 32, backgroundColor: '#ff4d6d15',
+    width: 64, height: 64, borderRadius: 32,
     justifyContent: 'center', alignItems: 'center', marginBottom: 16,
   },
-  modalTitle: { color: '#e8edf5', fontSize: 20, fontWeight: '800', marginBottom: 12 },
-  modalDesc: { color: '#8892a4', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 12, color: colors.textPrimary },
+  modalDesc: { fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24, color: colors.textSecondary },
   modalActions: { flexDirection: 'row', gap: 12, width: '100%' },
   modalBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 14,

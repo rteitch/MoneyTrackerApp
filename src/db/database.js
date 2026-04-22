@@ -1,6 +1,6 @@
 
 // Current DB schema version — increment when making schema changes
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export async function initDatabase(db) {
   try {
@@ -57,6 +57,8 @@ export async function initDatabase(db) {
           FOREIGN KEY (category_id) REFERENCES categories (id),
           FOREIGN KEY (subcategory_id) REFERENCES subcategories (id)
       );
+
+      CREATE INDEX IF NOT EXISTS idx_transactions_date_deleted ON transactions(date, is_deleted);
     `);
 
     // Run versioned migrations (safe for upgrades)
@@ -83,6 +85,10 @@ async function runMigrations(db) {
   // Migration v0 → v1: patch older installs
   if (currentVersion < 1) {
     try { await db.execAsync('ALTER TABLE categories ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch(_e) {}
+  }
+
+  if (currentVersion < 2) {
+    try { await db.execAsync('CREATE INDEX IF NOT EXISTS idx_transactions_date_deleted ON transactions(date, is_deleted)'); } catch(_e) {}
   }
 
   // Future migrations go here:
@@ -340,7 +346,7 @@ export async function updateTransaction(db, transactionId, params, oldTx) {
   }
 }
 
-export async function getAllTransactions(db, searchQuery = '', filterType = 'all', bounds) {
+export async function getAllTransactions(db, searchQuery = '', filterType = 'all', bounds, accountId = null) {
   const { start, end } = bounds || { start: '1970-01-01T00:00:00.000Z', end: '2100-01-01T00:00:00.000Z' };
   
   let query = `
@@ -363,6 +369,11 @@ export async function getAllTransactions(db, searchQuery = '', filterType = 'all
     query += ' AND (LOWER(c.name) LIKE LOWER(?) OR LOWER(s.name) LIKE LOWER(?) OR LOWER(t.description) LIKE LOWER(?))';
     const likeQ = '%' + searchQuery + '%';
     params.push(likeQ, likeQ, likeQ);
+  }
+
+  if (accountId) {
+    query += ' AND (t.account_id = ? OR t.to_account_id = ?)';
+    params.push(accountId, accountId);
   }
 
   query += ' ORDER BY t.date DESC';

@@ -1,21 +1,34 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity
-} from 'react-native';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useFocusEffect } from '@react-navigation/native';
-import Svg, { Path, Circle, Text as SvgText } from 'react-native-svg';
-import {
-  getStats, getExpenseByCategory, getDateFilterBoundary,
-  getFixedVsVariableExpense, getTotalHarta,
-  calculateFinancialHealth, generateSummary,
-  getSubCategoryExpense, getMonthComparison,
-} from '../db/database';
 import { Ionicons } from '@expo/vector-icons';
-import { formatRupiah } from '../utils/formatting';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useCallback, useState } from 'react';
+import {
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import CountUp from '../components/CountUp';
 import MetricCard from '../components/MetricCard';
 import StatusModal from '../components/StatusModal';
+import { useAppContext } from '../context/AppContext';
+import {
+    calculateFinancialHealth,
+    generateSummary,
+    getDateFilterBoundary,
+    getExpenseByCategory,
+    getFixedVsVariableExpense,
+    getMonthComparison,
+    getStats,
+    getSubCategoryExpense,
+    getTotalHarta,
+} from '../db/database';
+import { formatRupiah } from '../utils/formatting';
 
 const COLOR_PALETTE = [
   '#7c6aff', '#00c896', '#ff4d6d', '#f59e0b',
@@ -34,7 +47,7 @@ const FILTERS = [
 
 
 // ─── Donut Chart (SVG) ───────────────────────────────────────────────────────
-function DonutChart({ data, total, size = 160 }) {
+function DonutChart({ data, total, size = 160, colors }) {
   if (!data?.length || total === 0) return null;
 
   const outerR = size / 2 - 8;
@@ -75,11 +88,11 @@ function DonutChart({ data, total, size = 160 }) {
       {segs.map((s, i) => (
         <Path key={i} d={s.d} fill={s.color} />
       ))}
-      <Circle cx={cx} cy={cy} r={innerR - 2} fill="#0d1526" />
+      <Circle cx={cx} cy={cy} r={innerR - 2} fill={colors.bgCard} />
       <SvgText
         x={cx} y={cy - 8}
         textAnchor="middle"
-        fill="#4a5568"
+        fill={colors.textMuted}
         fontSize="9"
         fontWeight="700"
       >
@@ -88,7 +101,7 @@ function DonutChart({ data, total, size = 160 }) {
       <SvgText
         x={cx} y={cy + 12}
         textAnchor="middle"
-        fill="#e8edf5"
+        fill={colors.textPrimary}
         fontSize="17"
         fontWeight="800"
       >
@@ -99,14 +112,16 @@ function DonutChart({ data, total, size = 160 }) {
 }
 
 // ─── Monthly Comparison Card ──────────────────────────────────────────────────
-function MonthComparisonCard({ data }) {
+function MonthComparisonCard({ data, colors, styles }) {
   if (!data) return null;
   const { thisMonth, lastMonth } = data;
   const max = Math.max(thisMonth.income, thisMonth.expense, lastMonth.income, lastMonth.expense, 1);
 
   const pctChange = (curr, prev) => {
-    if (prev === 0) return curr > 0 ? '+∞%' : '0%';
+    if (prev === 0 && curr === 0) return '—';
+    if (prev === 0 && curr > 0) return 'Baru';
     const pct = ((curr - prev) / prev) * 100;
+    if (Math.abs(pct) < 0.5) return '±0%';
     return (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%';
   };
 
@@ -114,14 +129,18 @@ function MonthComparisonCard({ data }) {
     const thisW = Math.max(2, (thisVal / max) * 100);
     const lastW = Math.max(2, (lastVal / max) * 100);
     const pct = pctChange(thisVal, lastVal);
+    const isNeutral = pct === '—' || pct === '±0%';
+    const isNew = pct === 'Baru';
     const isPositive = thisVal >= lastVal;
-    const badgeBg = isPositive ? '#003d2a' : '#2d0a14';
-    const badgeColor = isPositive ? '#00c896' : '#ff4d6d';
+    
+    // Dynamic background for badges
+    const badgeBg = isNeutral ? colors.bgElevated : isNew ? colors.infoBg : isPositive ? colors.incomeBg : colors.expenseBg;
+    const badgeColor = isNeutral ? colors.textMuted : isNew ? colors.info : isPositive ? colors.income : colors.expense;
 
     return (
       <View style={{ marginBottom: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text style={{ color: '#8892a4', fontSize: 12, fontWeight: '600' }}>{label}</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>{label}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={{ color, fontSize: 13, fontWeight: '700' }}>{formatRupiah(thisVal)}</Text>
             <View style={{ backgroundColor: badgeBg, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 }}>
@@ -130,14 +149,14 @@ function MonthComparisonCard({ data }) {
           </View>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-          <Text style={{ color: '#4a5568', fontSize: 10, width: 46 }}>Bln Ini</Text>
-          <View style={{ flex: 1, height: 7, backgroundColor: '#1a2540', borderRadius: 4 }}>
+          <Text style={{ color: colors.textMuted, fontSize: 10, width: 46 }}>Bln Ini</Text>
+          <View style={{ flex: 1, height: 7, backgroundColor: colors.bgElevated, borderRadius: 4 }}>
             <View style={{ width: `${thisW}%`, height: 7, backgroundColor: color, borderRadius: 4 }} />
           </View>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ color: '#2a3550', fontSize: 10, width: 46 }}>Bln Lalu</Text>
-          <View style={{ flex: 1, height: 7, backgroundColor: '#1a2540', borderRadius: 4 }}>
+          <Text style={{ color: colors.textFaint, fontSize: 10, width: 46 }}>Bln Lalu</Text>
+          <View style={{ flex: 1, height: 7, backgroundColor: colors.bgElevated, borderRadius: 4 }}>
             <View style={{ width: `${lastW}%`, height: 7, backgroundColor: color + '55', borderRadius: 4 }} />
           </View>
         </View>
@@ -146,24 +165,24 @@ function MonthComparisonCard({ data }) {
   };
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}>
-        <Ionicons name="swap-vertical-outline" size={16} color="#7c6aff" />
-        <Text style={styles.sectionTitle}>Perbandingan Bulanan</Text>
+        <Ionicons name="swap-vertical-outline" size={16} color={colors.brand} />
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Perbandingan Bulanan</Text>
       </View>
-      <CompareRow label="Pemasukan" thisVal={thisMonth.income} lastVal={lastMonth.income} color="#00c896" />
-      <CompareRow label="Pengeluaran" thisVal={thisMonth.expense} lastVal={lastMonth.expense} color="#ff4d6d" />
+      <CompareRow label="Pemasukan" thisVal={thisMonth.income} lastVal={lastMonth.income} color={colors.income} />
+      <CompareRow label="Pengeluaran" thisVal={thisMonth.expense} lastVal={lastMonth.expense} color={colors.expense} />
     </View>
   );
 }
 
 // ─── Score Ring ───────────────────────────────────────────────────────────────
-function ScoreRing({ score, status }) {
+function ScoreRing({ score, status, colors }) {
   const color = status === 'sehat' ? '#00c896' : status === 'kritis' ? '#ff4d6d' : '#f59e0b';
   return (
-    <View style={[scoreRingStyles.ring, { borderColor: color }]}>
+    <View style={[scoreRingStyles.ring, { borderColor: color, backgroundColor: colors.bgDeep }]}>
       <Text style={[scoreRingStyles.score, { color }]}>{score}</Text>
-      <Text style={scoreRingStyles.outOf}>/100</Text>
+      <Text style={[scoreRingStyles.outOf, { color: colors.textMuted }]}>/100</Text>
     </View>
   );
 }
@@ -171,15 +190,127 @@ const scoreRingStyles = StyleSheet.create({
   ring: {
     width: 80, height: 80, borderRadius: 40,
     borderWidth: 4, justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#060d1a',
   },
   score: { fontSize: 22, fontWeight: '800' },
-  outOf: { color: '#4a5568', fontSize: 10, marginTop: -2 },
+  outOf: { fontSize: 10, marginTop: -2 },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+const makeStyles = (colors) => StyleSheet.create({
+  root: { flex: 1 },
+
+  // Filter
+  filterHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 16, marginBottom: 16, marginTop: 12 },
+  periodTitle: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  filterToggle: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, gap: 6 },
+  filterToggleLabel: { fontSize: 12, fontWeight: '700' },
+  filterScroll: { paddingBottom: 12, marginBottom: 8 },
+  filterContent: { gap: 8, paddingRight: 16 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginRight: 8 },
+  chipText: { fontSize: 12, fontWeight: '600' },
+
+  // Health Card
+  healthCard: {
+    marginHorizontal: 16, borderRadius: 20,
+    padding: 20, marginBottom: 16, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
+    elevation: 4, shadowColor: colors.brand, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, shadowRadius: 10,
+  },
+  healthLeft: { flex: 1, marginRight: 16 },
+  healthBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+    alignSelf: 'flex-start', marginBottom: 10,
+  },
+  healthBadgeText: { fontSize: 11, fontWeight: '700' },
+  healthTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  healthDesc: { fontSize: 12, lineHeight: 19 },
+
+  // Metrics
+  metricsSection: { marginHorizontal: 12, marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 0 },
+  metricsRow: { flexDirection: 'row', marginTop: 12 },
+
+  // Card
+  card: {
+    marginHorizontal: 16, borderRadius: 16,
+    padding: 18, marginBottom: 16, borderWidth: 1,
+  },
+
+  // Cash flow
+  cashFlowRow: { flexDirection: 'row', marginBottom: 14, marginTop: 14 },
+  cashFlowItem: { flex: 1, alignItems: 'center' },
+  cashFlowLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  cashFlowVal: { fontSize: 16, fontWeight: '800' },
+  cashFlowDivider: { width: 1, marginHorizontal: 16, borderRadius: 1 },
+  netRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingTop: 14, borderTopWidth: 1,
+  },
+  netLabel: { fontSize: 13, fontWeight: '600' },
+  netVal: { fontSize: 16, fontWeight: '800' },
+
+  // Donut + legend
+  chartRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginTop: 14,
+  },
+  legendList: { flex: 1, paddingLeft: 14 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
+  legendDot: { width: 9, height: 9, borderRadius: 5, marginRight: 7, flexShrink: 0 },
+  legendName: { fontSize: 11, fontWeight: '600' },
+  legendPct: { fontSize: 10, fontWeight: '700', marginTop: 1 },
+  legendMore: { fontSize: 10, marginTop: 4, fontStyle: 'italic' },
+
+  // Breakdown
+  tapHint: { fontSize: 11, marginBottom: 14, marginTop: 6, fontStyle: 'italic' },
+  breakdownItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 12, borderBottomWidth: 1,
+    gap: 10,
+  },
+  breakdownItemActive: { borderRadius: 10, paddingHorizontal: 6, marginHorizontal: -6 },
+  catRankBadge: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  catRank: { fontSize: 11, fontWeight: '800' },
+  breakdownMid: { flex: 1 },
+  breakdownName: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  barTrack: { height: 4, borderRadius: 2 },
+  barFill: { height: 4, borderRadius: 2 },
+  breakdownRight: { alignItems: 'flex-end', minWidth: 80 },
+  breakdownAmt: { fontSize: 13, fontWeight: '700' },
+  breakdownPct: { fontSize: 11, marginTop: 2 },
+
+  // Sub-breakdown (drill-down)
+  subBreakdown: {
+    borderRadius: 10,
+    padding: 12, marginBottom: 4, marginLeft: 36,
+    borderLeftWidth: 2, marginTop: -1,
+  },
+  subLoading: { fontSize: 12, textAlign: 'center', paddingVertical: 10 },
+  subEmpty: { fontSize: 12, textAlign: 'center', paddingVertical: 10, fontStyle: 'italic' },
+  subItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 8, borderBottomWidth: 1,
+    gap: 10,
+  },
+  subName: { fontSize: 12 },
+  subBarTrack: { height: 3, borderRadius: 2, marginTop: 4 },
+  subBarFill: { height: 3, borderRadius: 2 },
+  subRight: { alignItems: 'flex-end', minWidth: 70 },
+  subAmt: { fontSize: 12, fontWeight: '700' },
+  subPct: { fontSize: 10, marginTop: 2 },
+
+  // Empty
+  emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 30 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', marginTop: 16 },
+  emptySub: { fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+});
+
 export default function AnalyticsScreen() {
   const db = useSQLiteContext();
+  const { colors, typeConfig } = useAppContext();
+  const styles = makeStyles(colors);
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
   const [expenseData, setExpenseData] = useState([]);
   const [filter, setFilter] = useState('month');
@@ -194,6 +325,8 @@ export default function AnalyticsScreen() {
   const [loadingSub, setLoadingSub] = useState(false);
 
   const [statusModal, setStatusModal] = useState({ visible: false, title: '', message: '', type: 'info' });
+  const [refreshing, setRefreshing] = useState(false);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const showStatus = (title, message, type) => {
     setStatusModal({ visible: true, title, message, type });
   };
@@ -262,8 +395,16 @@ export default function AnalyticsScreen() {
     return () => { cancelled.current = true; };
   }, [loadData]));
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
   // Drill-down: tap kategori → load subkategori on demand
   const handleCategoryTap = async (cat) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (expandedCatId === cat.id) {
       setExpandedCatId(null);
       return;
@@ -296,43 +437,88 @@ export default function AnalyticsScreen() {
 
   return (
     <ScrollView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: colors.bgPrimary }]}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 80 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.brand}
+          colors={[colors.brand]}
+        />
+      }
     >
-      {/* ── Filter Chips ── */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-        {FILTERS.map(f => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.chip, filter === f.key && styles.chipActive]}
-            onPress={() => setFilter(f.key)}
-          >
-            <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>{f.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* ── Filter Header + Toggle ── */}
+      <View style={[styles.filterHeader, { backgroundColor: colors.bgPrimary }]}>
+        <Text style={[styles.periodTitle, { color: colors.textMuted }]}>Analisis Periode</Text>
+        <TouchableOpacity 
+          style={[styles.filterToggle, { backgroundColor: colors.bgCard, borderColor: colors.border }]} 
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setIsFilterExpanded(!isFilterExpanded);
+          }}
+        >
+          <Text style={[styles.filterToggleLabel, { color: colors.brand }]}>
+            {FILTERS.find(f => f.key === filter)?.label}
+          </Text>
+          <Ionicons name={isFilterExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.brand} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Filter Chips (Shown only if expanded) ── */}
+      {isFilterExpanded && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.filterScroll, { backgroundColor: colors.bgPrimary }]}
+          contentContainerStyle={{ paddingLeft: 16, paddingRight: 16 }}
+        >
+          {FILTERS.map(f => (
+            <TouchableOpacity
+              key={f.key}
+              style={[
+                styles.chip,
+                { backgroundColor: colors.bgCard, borderColor: colors.border },
+                filter === f.key && { backgroundColor: colors.brand, borderColor: colors.brand }
+              ]}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setFilter(f.key);
+                setIsFilterExpanded(false);
+              }}
+            >
+              <Text style={[styles.chipText, { color: colors.textMuted }, filter === f.key && { color: '#fff' }]}>{f.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* ── Health Score Card ── */}
-      <View style={[styles.healthCard, { borderColor: sc.color + '55' }]}>
+      <LinearGradient
+        colors={[colors.bgCard, colors.brandBg]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.healthCard, { borderColor: colors.border }]}
+      >
         <View style={styles.healthLeft}>
-          <View style={styles.healthBadge}>
+          <View style={[styles.healthBadge, { backgroundColor: sc.color + '20' }]}>
             <Ionicons name={sc.icon} size={14} color={sc.color} />
             <Text style={[styles.healthBadgeText, { color: sc.color }]}>{sc.label}</Text>
           </View>
-          <Text style={styles.healthTitle}>Skor Keuangan</Text>
-          <Text style={styles.healthDesc} numberOfLines={4}>{financeSummary}</Text>
+          <Text style={[styles.healthTitle, { color: colors.textPrimary }]}>Skor Keuangan</Text>
+          <Text style={[styles.healthDesc, { color: colors.textSecondary }]}>{financeSummary}</Text>
         </View>
-        <ScoreRing score={financeScore} status={financeStatus} />
-      </View>
+        <ScoreRing score={financeScore} status={financeStatus} colors={colors} />
+      </LinearGradient>
 
       {/* ── Monthly Comparison Card ── */}
-      <MonthComparisonCard data={monthComparison} />
+      <MonthComparisonCard data={monthComparison} colors={colors} styles={styles} />
 
       {/* ── Key Metrics ── */}
       {health && (
         <View style={styles.metricsSection}>
-          <Text style={styles.sectionTitle}>Metrik Keuangan</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Metrik Keuangan</Text>
           <View style={styles.metricsRow}>
             <MetricCard
               label="Savings Rate"
@@ -369,48 +555,52 @@ export default function AnalyticsScreen() {
       )}
 
       {/* ── Cash Flow Summary ── */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Ringkasan Arus Kas</Text>
+      <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Ringkasan Arus Kas</Text>
         <View style={styles.cashFlowRow}>
           <View style={styles.cashFlowItem}>
-            <Text style={styles.cashFlowLabel}>Pemasukan</Text>
-            <Text style={[styles.cashFlowVal, { color: '#00c896' }]}>+{formatRupiah(stats.income)}</Text>
+            <Text style={[styles.cashFlowLabel, { color: colors.textMuted }]}>Pemasukan</Text>
+            <Text style={[styles.cashFlowVal, { color: colors.income }]}>
+              + <CountUp value={stats.income} />
+            </Text>
           </View>
-          <View style={styles.cashFlowDivider} />
+          <View style={[styles.cashFlowDivider, { backgroundColor: colors.border }]} />
           <View style={styles.cashFlowItem}>
-            <Text style={styles.cashFlowLabel}>Pengeluaran</Text>
-            <Text style={[styles.cashFlowVal, { color: '#ff4d6d' }]}>−{formatRupiah(stats.expense)}</Text>
+            <Text style={[styles.cashFlowLabel, { color: colors.textMuted }]}>Pengeluaran</Text>
+            <Text style={[styles.cashFlowVal, { color: colors.expense }]}>
+              − <CountUp value={stats.expense} />
+            </Text>
           </View>
         </View>
-        <View style={styles.netRow}>
-          <Text style={styles.netLabel}>Net Cash Flow</Text>
-          <Text style={[styles.netVal, { color: stats.income - stats.expense >= 0 ? '#00c896' : '#ff4d6d' }]}>
-            {stats.income - stats.expense >= 0 ? '+' : '−'}
-            {formatRupiah(Math.abs(stats.income - stats.expense))}
+        <View style={[styles.netRow, { borderTopColor: colors.border }]}>
+          <Text style={[styles.netLabel, { color: colors.textSecondary }]}>Net Cash Flow</Text>
+          <Text style={[styles.netVal, { color: stats.income - stats.expense >= 0 ? colors.income : colors.expense }]}>
+            {stats.income - stats.expense >= 0 ? '+ ' : '− '}
+            <CountUp value={Math.abs(stats.income - stats.expense)} />
           </Text>
         </View>
       </View>
 
       {/* ── Donut Chart + Inline Legend ── */}
       {expenseData.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Distribusi Pengeluaran</Text>
+        <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Distribusi Pengeluaran</Text>
           <View style={styles.chartRow}>
             {/* Donut */}
-            <DonutChart data={expenseData} total={totalExpense} size={160} />
+            <DonutChart data={expenseData} total={totalExpense} size={160} colors={colors} />
             {/* Legend top 7 */}
             <View style={styles.legendList}>
               {expenseData.slice(0, 7).map((item, i) => (
                 <View key={i} style={styles.legendItem}>
                   <View style={[styles.legendDot, { backgroundColor: item.color }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.legendName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={[styles.legendName, { color: colors.textSecondary }]} numberOfLines={1}>{item.name}</Text>
                     <Text style={[styles.legendPct, { color: item.color }]}>{item.percentage}%</Text>
                   </View>
                 </View>
               ))}
               {expenseData.length > 7 && (
-                <Text style={styles.legendMore}>+{expenseData.length - 7} kategori lainnya</Text>
+                <Text style={[styles.legendMore, { color: colors.textMuted }]}>+{expenseData.length - 7} kategori lainnya</Text>
               )}
             </View>
           </View>
@@ -419,9 +609,9 @@ export default function AnalyticsScreen() {
 
       {/* ── Expense Breakdown with Drill-Down ── */}
       {expenseData.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Rincian per Kategori</Text>
-          <Text style={styles.tapHint}>Ketuk kategori untuk melihat sub-kategori ↓</Text>
+        <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Rincian per Kategori</Text>
+          <Text style={[styles.tapHint, { color: colors.textMuted }]}>Ketuk kategori untuk melihat sub-kategori ↓</Text>
 
           {expenseData.map((item, i) => {
             const isExpanded = expandedCatId === item.id;
@@ -438,7 +628,7 @@ export default function AnalyticsScreen() {
                     <Text style={[styles.catRank, { color: item.color }]}>{i + 1}</Text>
                   </View>
                   <View style={styles.breakdownMid}>
-                    <Text style={styles.breakdownName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={[styles.breakdownName, { color: colors.textPrimary }]} numberOfLines={1}>{item.name}</Text>
                     <View style={styles.barTrack}>
                       <View style={[styles.barFill, { width: `${barW}%`, backgroundColor: item.color }]} />
                     </View>
@@ -494,9 +684,9 @@ export default function AnalyticsScreen() {
       {/* ── Empty State ── */}
       {expenseData.length === 0 && (
         <View style={styles.emptyState}>
-          <Ionicons name="bar-chart-outline" size={44} color="#1a2540" />
-          <Text style={styles.emptyTitle}>Belum Ada Data</Text>
-          <Text style={styles.emptySub}>Mulai catat transaksi untuk melihat analisis keuangan Anda.</Text>
+          <Ionicons name="bar-chart-outline" size={44} color={colors.bgElevated} />
+          <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>Belum Ada Data</Text>
+          <Text style={[styles.emptySub, { color: colors.textMuted }]}>Mulai catat transaksi untuk melihat analisis keuangan Anda.</Text>
         </View>
       )}
 
@@ -511,111 +701,3 @@ export default function AnalyticsScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#060d1a' },
-
-  filterScroll: { paddingLeft: 16, paddingVertical: 12, flexGrow: 0, marginBottom: 4 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#0d1526', marginRight: 8, borderWidth: 1, borderColor: '#1a2540',
-  },
-  chipActive: { backgroundColor: '#7c6aff', borderColor: '#7c6aff' },
-  chipText: { color: '#4a5568', fontSize: 12, fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
-
-  // Health Card
-  healthCard: {
-    marginHorizontal: 16, backgroundColor: '#0d1526', borderRadius: 18,
-    padding: 20, marginBottom: 16, borderWidth: 1,
-    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
-  },
-  healthLeft: { flex: 1, marginRight: 16 },
-  healthBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
-    backgroundColor: '#1a2540', alignSelf: 'flex-start', marginBottom: 10,
-  },
-  healthBadgeText: { fontSize: 11, fontWeight: '700' },
-  healthTitle: { color: '#e8edf5', fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  healthDesc: { color: '#8892a4', fontSize: 12, lineHeight: 19 },
-
-  // Metrics
-  metricsSection: { marginHorizontal: 12, marginBottom: 12 },
-  sectionTitle: { color: '#e8edf5', fontSize: 15, fontWeight: '700', marginBottom: 0 },
-  metricsRow: { flexDirection: 'row', marginTop: 12 },
-
-  // Card
-  card: {
-    marginHorizontal: 16, backgroundColor: '#0d1526', borderRadius: 16,
-    padding: 18, marginBottom: 16, borderWidth: 1, borderColor: '#1a2540',
-  },
-
-  // Cash flow
-  cashFlowRow: { flexDirection: 'row', marginBottom: 14, marginTop: 14 },
-  cashFlowItem: { flex: 1, alignItems: 'center' },
-  cashFlowLabel: { color: '#4a5568', fontSize: 11, fontWeight: '600', marginBottom: 4 },
-  cashFlowVal: { fontSize: 16, fontWeight: '800' },
-  cashFlowDivider: { width: 1, backgroundColor: '#1a2540', marginHorizontal: 16, borderRadius: 1 },
-  netRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 14, borderTopWidth: 1, borderTopColor: '#1a2540',
-  },
-  netLabel: { color: '#8892a4', fontSize: 13, fontWeight: '600' },
-  netVal: { fontSize: 16, fontWeight: '800' },
-
-  // Donut + legend
-  chartRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginTop: 14,
-  },
-  legendList: { flex: 1, paddingLeft: 14 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
-  legendDot: { width: 9, height: 9, borderRadius: 5, marginRight: 7, flexShrink: 0 },
-  legendName: { color: '#e8edf5', fontSize: 11, fontWeight: '600' },
-  legendPct: { fontSize: 10, fontWeight: '700', marginTop: 1 },
-  legendMore: { color: '#2a3550', fontSize: 10, marginTop: 4, fontStyle: 'italic' },
-
-  // Breakdown
-  tapHint: { color: '#2a3550', fontSize: 11, marginBottom: 14, marginTop: 6, fontStyle: 'italic' },
-  breakdownItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1a2540',
-    gap: 10,
-  },
-  breakdownItemActive: { backgroundColor: '#0a1020', borderRadius: 10, paddingHorizontal: 6, marginHorizontal: -6 },
-  catRankBadge: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  catRank: { fontSize: 11, fontWeight: '800' },
-  breakdownMid: { flex: 1 },
-  breakdownName: { color: '#e8edf5', fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  barTrack: { height: 4, backgroundColor: '#1a2540', borderRadius: 2 },
-  barFill: { height: 4, borderRadius: 2 },
-  breakdownRight: { alignItems: 'flex-end', minWidth: 80 },
-  breakdownAmt: { fontSize: 13, fontWeight: '700' },
-  breakdownPct: { color: '#4a5568', fontSize: 11, marginTop: 2 },
-
-  // Sub-breakdown (drill-down)
-  subBreakdown: {
-    backgroundColor: '#060d1a', borderRadius: 10,
-    padding: 12, marginBottom: 4, marginLeft: 36,
-    borderLeftWidth: 2, marginTop: -1,
-  },
-  subLoading: { color: '#4a5568', fontSize: 12, textAlign: 'center', paddingVertical: 10 },
-  subEmpty: { color: '#2a3550', fontSize: 12, textAlign: 'center', paddingVertical: 10, fontStyle: 'italic' },
-  subItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#0d1526',
-    gap: 10,
-  },
-  subName: { color: '#8892a4', fontSize: 12 },
-  subBarTrack: { height: 3, backgroundColor: '#1a2540', borderRadius: 2, marginTop: 4 },
-  subBarFill: { height: 3, borderRadius: 2 },
-  subRight: { alignItems: 'flex-end', minWidth: 70 },
-  subAmt: { fontSize: 12, fontWeight: '700' },
-  subPct: { color: '#4a5568', fontSize: 10, marginTop: 2 },
-
-  // Empty
-  emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 30 },
-  emptyTitle: { color: '#2a3550', fontSize: 16, fontWeight: '700', marginTop: 16 },
-  emptySub: { color: '#1e2a42', fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 20 },
-});

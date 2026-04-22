@@ -1,79 +1,93 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, TransactionTypeConfig } from '../constants/theme';
-import { formatRupiah, formatDateShort } from '../utils/formatting';
+import * as Haptics from 'expo-haptics';
+import React from 'react';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppContext } from '../context/AppContext';
+import { formatRupiah, formatDate } from '../utils/formatting';
+import { FontSizes, Radius, Spacing } from '../constants/theme';
 
-export default function TransactionCard({ 
-  item, 
-  onPress, 
-  onLongPress, 
-  showActions = false,
-  onEdit,
-  onDelete 
-}) {
-  const cfg = TransactionTypeConfig[item.type] || TransactionTypeConfig.expense;
+export default function TransactionCard({ item, onPress, onLongPress, showActions = false, onEdit, onDelete }) {
+  const { colors, typeConfig } = useAppContext();
+  const styles = makeStyles(colors);
+  const config = typeConfig[item.type] || typeConfig.expense;
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
+  };
 
   return (
-    <TouchableOpacity
-      style={styles.txItem}
-      onLongPress={onLongPress ? () => onLongPress(item) : undefined}
-      onPress={onPress ? () => onPress(item) : undefined}
-      activeOpacity={0.75}
-      delayLongPress={400}
-    >
-      <View style={[styles.txIconWrap, { backgroundColor: cfg.bg }]}>
-        <Ionicons name={cfg.icon} size={18} color={cfg.color} />
-      </View>
-      
-      <View style={styles.txMid}>
-        <Text style={styles.txTitle} numberOfLines={1}>
-          {item.category_name || 'Transfer Saldo'}
-        </Text>
-        <Text style={styles.txSub} numberOfLines={1}>
-          {item.type === 'transfer'
-            ? `${item.account_name} → ${item.to_account_name}`
-            : `${item.account_name}${item.subcategory_name ? ' · ' + item.subcategory_name : ''}`}
-        </Text>
-        {!!item.description && showActions && (
-          <Text style={styles.txDesc} numberOfLines={1}>{item.description}</Text>
-        )}
-      </View>
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={styles.card}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(item); }}
+        onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onLongPress?.(item); }}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        delayLongPress={400}
+      >
+        <View style={[styles.iconBox, { backgroundColor: config.color + '15' }]}>
+          <Ionicons name={config.icon} size={18} color={config.color} />
+        </View>
 
-      <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit>
-          {cfg.sign}{formatRupiah(item.amount)}
-        </Text>
-        
-        {showActions ? (
-          <View style={styles.txActions}>
-            <TouchableOpacity onPress={() => onEdit && onEdit(item)} style={styles.txActionBtn}>
-              <Ionicons name="create-outline" size={14} color={Colors.brand} />
+        <View style={styles.content}>
+          <View style={styles.topRow}>
+            <Text style={styles.category} numberOfLines={1}>
+              {item.type === 'transfer' ? `Transfer: ${item.account_name} ➔ ${item.to_account_name}` : item.category_name}
+            </Text>
+            <Text style={[styles.amount, { color: config.color }]}>
+              {config.sign}{formatRupiah(item.amount)}
+            </Text>
+          </View>
+
+          <View style={styles.bottomRow}>
+            <View style={styles.metaRow}>
+              <Text style={styles.subText}>{formatDate(item.date)}</Text>
+              {item.account_name && item.type !== 'transfer' && (
+                <>
+                  <Text style={styles.dot}> • </Text>
+                  <Text style={styles.subText}>{item.account_name}</Text>
+                </>
+              )}
+            </View>
+            {item.description ? (
+              <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
+            ) : null}
+          </View>
+        </View>
+
+        {showActions && (
+          <View style={styles.actions}>
+            <TouchableOpacity onPress={() => onEdit?.(item)} style={styles.actionBtn}>
+              <Ionicons name="pencil" size={16} color={colors.brand} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => onDelete && onDelete(item)} style={styles.txActionBtn}>
-              <Ionicons name="trash-outline" size={14} color={Colors.expense} />
+            <TouchableOpacity onPress={() => onDelete?.(item)} style={styles.actionBtn}>
+              <Ionicons name="trash" size={16} color={colors.expense} />
             </TouchableOpacity>
           </View>
-        ) : (
-          <Text style={styles.txDate}>{formatDateShort(item.date)}</Text>
         )}
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
-  txItem: {
+const makeStyles = (colors) => StyleSheet.create({
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bgCard,
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: colors.bgCard,
+    borderColor: colors.border,
   },
-  txIconWrap: {
+  iconBox: {
     width: 44,
     height: 44,
     borderRadius: 14,
@@ -81,17 +95,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 14,
   },
-  txMid: { flex: 1, marginRight: 8 },
-  txTitle: { color: Colors.textPrimary, fontSize: 15, fontWeight: '600', marginBottom: 4 },
-  txSub: { color: Colors.textMuted, fontSize: 13 },
-  txDesc: { color: Colors.textSecondary, fontSize: 12, fontStyle: 'italic', marginTop: 4 },
-  txRight: { alignItems: 'flex-end', minWidth: 80, flexShrink: 0 },
-  txAmount: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  txDate: { color: Colors.textSecondary, fontSize: 12, fontWeight: '500' },
-  txActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  txActionBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: Colors.bgElevated,
+  content: { flex: 1, marginRight: 8 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  category: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+  amount: { fontSize: 15, fontWeight: '700' },
+  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  metaRow: { flexDirection: 'row', alignItems: 'center' },
+  subText: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
+  dot: { fontSize: 12, color: colors.textFaint },
+  description: { fontSize: 12, fontStyle: 'italic', marginTop: 4, color: colors.textSecondary },
+  actions: { flexDirection: 'row', gap: 10, paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: colors.border },
+  actionBtn: {
+    width: 32, height: 32, borderRadius: 16,
     justifyContent: 'center', alignItems: 'center',
   },
 });

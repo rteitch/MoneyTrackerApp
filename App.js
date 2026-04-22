@@ -1,20 +1,21 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SQLiteProvider } from 'expo-sqlite';
-import { initDatabase } from './src/db/database';
-import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { NavigationContainer } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
+import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
+import React from 'react';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { initDatabase } from './src/db/database';
 
 // Imported Screens
-import DashboardScreen from './src/screens/DashboardScreen';
-import TransactionScreen from './src/screens/TransactionScreen';
+import { AppProvider, useAppContext } from './src/context/AppContext';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
 import MutasiScreen from './src/screens/MutasiScreen';
-import { AppProvider } from './src/context/AppContext';
+import SettingsScreen from './src/screens/SettingsScreen';
+import TransactionScreen from './src/screens/TransactionScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -72,6 +73,7 @@ class ErrorBoundary extends React.Component {
 
 function AppContent() {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppContext();
 
   return (
     <NavigationContainer>
@@ -86,12 +88,12 @@ function AppContent() {
             else if (route.name === 'Pengaturan') iconName = focused ? 'settings' : 'settings-outline';
             return <Ionicons name={iconName} size={size} color={color} />;
           },
-          tabBarActiveTintColor: '#7c6aff',
-          tabBarInactiveTintColor: '#4a5568',
+          tabBarActiveTintColor: colors.brand,
+          tabBarInactiveTintColor: colors.textMuted,
           tabBarStyle: {
-            backgroundColor: '#0d1526',
+            backgroundColor: colors.bgCard,
             borderTopWidth: 1,
-            borderTopColor: '#1a2540',
+            borderTopColor: colors.border,
             height: 62 + insets.bottom,
             paddingBottom: 8 + insets.bottom,
             paddingTop: 6,
@@ -101,31 +103,71 @@ function AppContent() {
             fontWeight: '600',
           },
           headerStyle: {
-            backgroundColor: '#0d1526',
+            backgroundColor: colors.bgCard,
             shadowColor: 'transparent',
             borderBottomWidth: 1,
-            borderBottomColor: '#1a2540',
+            borderBottomColor: colors.border,
             elevation: 0,
           },
-          headerTintColor: '#e8edf5',
+          headerTintColor: colors.textPrimary,
           headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
           headerShadowVisible: false,
         })}
       >
-        <Tab.Screen name="Beranda" component={DashboardScreen} options={{ title: 'Beranda' }} />
-        <Tab.Screen name="Mutasi" component={MutasiScreen} options={{ title: 'Mutasi' }} />
-        <Tab.Screen name="Tambah Transaksi" component={TransactionScreen} options={{ title: 'Catat Transaksi' }} />
-        <Tab.Screen name="Statistik" component={AnalyticsScreen} options={{ title: 'Statistik' }} />
-        <Tab.Screen name="Pengaturan" component={SettingsScreen} options={{ title: 'Pengaturan' }} />
+        <Tab.Screen 
+          name="Beranda" 
+          component={DashboardScreen} 
+          options={{ title: 'Beranda' }} 
+          listeners={{
+            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+          }}
+        />
+        <Tab.Screen 
+          name="Mutasi" 
+          component={MutasiScreen} 
+          options={{ title: 'Mutasi' }} 
+          listeners={{
+            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+          }}
+        />
+        <Tab.Screen 
+          name="Tambah Transaksi" 
+          component={TransactionScreen} 
+          options={{ title: 'Catat Transaksi' }} 
+          listeners={{
+            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
+          }}
+        />
+        <Tab.Screen 
+          name="Statistik" 
+          component={AnalyticsScreen} 
+          options={{ title: 'Statistik' }} 
+          listeners={{
+            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+          }}
+        />
+        <Tab.Screen 
+          name="Pengaturan" 
+          component={SettingsScreen} 
+          options={{ title: 'Pengaturan' }} 
+          listeners={{
+            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+          }}
+        />
       </Tab.Navigator>
     </NavigationContainer>
   );
 }
 
+// StatusBar component yang respons terhadap theme
+function AppStatusBar() {
+  const { currentTheme } = useAppContext();
+  return <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />;
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
       <ErrorBoundary>
         <SQLiteProvider
           databaseName="moneytracker.db"
@@ -133,6 +175,7 @@ export default function App() {
           loadingFallback={<LoadingFallback />}
         >
           <AppProvider>
+            <AppStatusBar />
             <AppContent />
           </AppProvider>
         </SQLiteProvider>

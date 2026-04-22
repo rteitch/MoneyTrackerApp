@@ -7,20 +7,26 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from '@react-navigation/native';
 import { getCategories, getSubCategories, addTransaction, updateTransaction, getAccounts } from '../db/database';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/theme';
-import { parseDateInput } from '../utils/formatting';
+import { useAppContext } from '../context/AppContext';
+import { formatDate, formatCurrencyInput, parseCurrencyRaw } from '../utils/formatting';
 import StatusModal from '../components/StatusModal';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
+import { FontSizes, Radius, Spacing } from '../constants/theme';
 
-const TYPE_OPTIONS = [
-  { key: 'expense', label: 'Pengeluaran', color: Colors.expense, bg: Colors.expenseBg, icon: 'arrow-down-circle' },
-  { key: 'income', label: 'Pemasukan', color: Colors.income, bg: Colors.incomeBg, icon: 'arrow-up-circle' },
-  { key: 'transfer', label: 'Transfer', color: Colors.brand, bg: Colors.brandBg, icon: 'swap-horizontal' },
-];
+// TYPE_OPTIONS defined inside component for theme support
 
 const QUICK_AMOUNTS = [10000, 20000, 50000, 100000, 200000, 500000];
 
 export default function TransactionScreen({ navigation, route }) {
   const db = useSQLiteContext();
+  const { colors, typeConfig } = useAppContext();
+  
+  const TYPE_OPTIONS = [
+    { key: 'expense', label: 'Pengeluaran', color: colors.expense, bg: colors.expenseBg, icon: 'arrow-down-circle' },
+    { key: 'income', label: 'Pemasukan', color: colors.income, bg: colors.incomeBg, icon: 'arrow-up-circle' },
+    { key: 'transfer', label: 'Transfer', color: colors.brand, bg: colors.brandBg, icon: 'swap-horizontal' },
+  ];
   const preselectedAccountId = route?.params?.accountId || null;
   const editTx = route?.params?.editTx || null;
   const isEditMode = !!editTx;
@@ -29,8 +35,8 @@ export default function TransactionScreen({ navigation, route }) {
   const [amount, setAmount] = useState('');
   const [fee, setFee] = useState('');
   const [desc, setDesc] = useState('');
-  const [useCustomDate, setUseCustomDate] = useState(false);
-  const [customDateStr, setCustomDateStr] = useState('');
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [accountId, setAccountId] = useState(null);
   const [toAccountId, setToAccountId] = useState(null);
@@ -73,18 +79,7 @@ export default function TransactionScreen({ navigation, route }) {
 
             // Atur tanggal
             const txDate = new Date(editTx.date);
-            const day = String(txDate.getDate()).padStart(2, '0');
-            const month = String(txDate.getMonth() + 1).padStart(2, '0');
-            const year = txDate.getFullYear();
-            const today = new Date();
-            const isToday = txDate.toDateString() === today.toDateString();
-            if (!isToday) {
-              setUseCustomDate(true);
-              setCustomDateStr(`${day}/${month}/${year}`);
-            } else {
-              setUseCustomDate(false);
-              setCustomDateStr('');
-            }
+            setDate(txDate);
 
             if (editTx.type !== 'transfer') {
               const cats = await getCategories(db, editTx.type);
@@ -110,8 +105,7 @@ export default function TransactionScreen({ navigation, route }) {
             setSelectedCat(null);
             setSelectedSub(null);
             setToAccountId(null);
-            setUseCustomDate(false);
-            setCustomDateStr('');
+            setDate(new Date());
 
             // Note: we fetch categories separately via useEffect so it doesn't reset amount on type change
           }
@@ -141,6 +135,7 @@ export default function TransactionScreen({ navigation, route }) {
   }, [type, db]);
 
   const handleTypeChange = (newType) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setType(newType);
     setSelectedCat(null);
     setSelectedSub(null);
@@ -156,6 +151,7 @@ export default function TransactionScreen({ navigation, route }) {
     }
     setSelectedCat(catId);
     setSelectedSub(null);
+    Haptics.selectionAsync();
     try {
       const subs = await getSubCategories(db, catId);
       setSubCategories(subs);
@@ -166,27 +162,18 @@ export default function TransactionScreen({ navigation, route }) {
   };
 
   const applyQuickAmount = (val) => {
-    const existing = parseInt(amount.replace(/[^0-9]/g, ''), 10) || 0;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const existing = parseCurrencyRaw(amount);
     const total = existing + val;
-    setAmount('Rp ' + total.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
+    setAmount(formatCurrencyInput(total.toString()));
   };
 
   const handleSave = async () => {
-    const amt = parseInt(amount.replace(/[^0-9]/g, ''), 10);
-    if (isNaN(amt) || amt <= 0) return showStatus('Nominal Tidak Valid', 'Masukkan nominal yang benar.', 'error');
+    const amt = parseCurrencyRaw(amount);
+    if (amt <= 0) return showStatus('Nominal Tidak Valid', 'Masukkan nominal yang benar.', 'error');
     if (!accountId) return showStatus('Pilih Dompet', 'Harap pilih dompet asal terlebih dahulu.', 'error');
 
-    let txDate = new Date().toISOString();
-    if (useCustomDate && customDateStr) {
-      const parsed = parseDateInput(customDateStr);
-      if (parsed) {
-        txDate = parsed;
-      } else {
-        return showStatus('Format Tanggal Salah', 'Gunakan format DD/MM/YYYY, contoh: 21/04/2026.', 'error');
-      }
-    } else if (isEditMode && editTx && !useCustomDate) {
-      txDate = editTx.date;
-    }
+    let txDate = date.toISOString();
 
     setSaving(true);
     try {
@@ -195,7 +182,7 @@ export default function TransactionScreen({ navigation, route }) {
       if (type === 'transfer') {
         if (!toAccountId) return showStatus('Pilih Tujuan', 'Pilih dompet tujuan transfer.', 'error');
         if (accountId === toAccountId) return showStatus('Dompet Sama', 'Dompet asal dan tujuan tidak boleh sama.', 'error');
-        const adminFee = parseInt(fee.replace(/[^0-9]/g, ''), 10) || 0;
+        const adminFee = parseCurrencyRaw(fee);
         Object.assign(txParams, { amount: amt, fee: adminFee, type: 'transfer', account_id: accountId, to_account_id: toAccountId, description: desc, date: txDate });
       } else {
         if (!selectedCat) return showStatus('Pilih Kategori', 'Harap pilih kategori transaksi.', 'error');
@@ -206,28 +193,36 @@ export default function TransactionScreen({ navigation, route }) {
 
       if (isEditMode && editTx) {
         await updateTransaction(db, editTx.id, txParams, editTx);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showStatus('Berhasil', 'Transaksi berhasil diperbarui!', 'success');
         setTimeout(() => navigation.goBack(), 1200);
       } else {
         await addTransaction(db, txParams);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         navigation.goBack();
       }
     } catch (e) {
       console.error('handleSave error:', e);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showStatus('Gagal Menyimpan', 'Transaksi tidak dapat disimpan. Pastikan semua data sudah benar dan coba lagi.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
+  const onDateChange = (event, selectedDate) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+
+  const styles = makeStyles(colors);
   const activeType = TYPE_OPTIONS.find(t => t.key === type);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
         {/* Type Switcher */}
         <View style={styles.typeSwitcher}>
@@ -237,8 +232,8 @@ export default function TransactionScreen({ navigation, route }) {
               style={[styles.typeBtn, type === t.key && { backgroundColor: t.bg, borderColor: t.color }]}
               onPress={() => handleTypeChange(t.key)}
             >
-              <Ionicons name={t.icon} size={14} color={type === t.key ? t.color : '#4a5568'} style={{ marginRight: 5 }} />
-              <Text style={[styles.typeText, type === t.key && { color: t.color }]}>{t.label}</Text>
+              <Ionicons name={t.icon} size={14} color={type === t.key ? t.color : colors.textMuted} style={{ marginRight: 5 }} />
+              <Text style={[styles.typeText, { color: type === t.key ? t.color : colors.textMuted }]}>{t.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -250,13 +245,9 @@ export default function TransactionScreen({ navigation, route }) {
             style={[styles.amountInput, { color: activeType.color }]}
             keyboardType="number-pad"
             placeholder="Rp 0"
-            placeholderTextColor="#2a3550"
+            placeholderTextColor={colors.textFaint}
             value={amount}
-            onChangeText={(text) => {
-              const raw = text.replace(/[^0-9]/g, '');
-              if (!raw) return setAmount('');
-              setAmount('Rp ' + parseInt(raw, 10).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
-            }}
+            onChangeText={(text) => setAmount(formatCurrencyInput(text))}
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickAmountsScroll}>
             {QUICK_AMOUNTS.map(val => (
@@ -280,7 +271,7 @@ export default function TransactionScreen({ navigation, route }) {
                 onPress={() => setAccountId(acc.id)}
               >
                 <View style={[styles.walletDot, { backgroundColor: acc.color }]} />
-                <Text style={[styles.walletChipText, accountId === acc.id && { color: acc.color }]}>{acc.name}</Text>
+                <Text style={[styles.walletChipText, accountId === acc.id && { color: acc.color, fontWeight: '700' }]}>{acc.name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -298,7 +289,7 @@ export default function TransactionScreen({ navigation, route }) {
                   onPress={() => setToAccountId(acc.id)}
                 >
                   <View style={[styles.walletDot, { backgroundColor: acc.color }]} />
-                  <Text style={[styles.walletChipText, toAccountId === acc.id && { color: acc.color }]}>{acc.name}</Text>
+                  <Text style={[styles.walletChipText, toAccountId === acc.id && { color: acc.color, fontWeight: '700' }]}>{acc.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -313,13 +304,9 @@ export default function TransactionScreen({ navigation, route }) {
               style={styles.inputBox}
               keyboardType="number-pad"
               placeholder="Rp 0"
-              placeholderTextColor="#2a3550"
+              placeholderTextColor={colors.textFaint}
               value={fee}
-              onChangeText={(text) => {
-                const raw = text.replace(/[^0-9]/g, '');
-                if (!raw) return setFee('');
-                setFee('Rp ' + parseInt(raw, 10).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'));
-              }}
+              onChangeText={(text) => setFee(formatCurrencyInput(text))}
             />
           </View>
         )}
@@ -339,7 +326,7 @@ export default function TransactionScreen({ navigation, route }) {
                     style={[styles.catChip, selectedCat === c.id && styles.catChipActive]}
                     onPress={() => handleCategorySelect(c.id)}
                   >
-                    {c.is_fixed === 1 && <View style={styles.fixedDot} />}
+                    {c.is_fixed === 1 && <View style={[styles.fixedDot, { backgroundColor: colors.warning }]} />}
                     <Text style={[styles.catChipText, selectedCat === c.id && styles.catChipTextActive]}>
                       {c.name}
                     </Text>
@@ -347,48 +334,50 @@ export default function TransactionScreen({ navigation, route }) {
                 ))}
             </View>
 
-            {subcategories.length > 0 && (
+            {subcategories.length > 0 && selectedCat && (
               <View style={styles.subSection}>
                 <Text style={[styles.label, { marginTop: 0 }]}>Sub-Kategori</Text>
                 <View style={styles.chipGrid}>
-                  {subcategories
-                    .filter(s => !selectedSub || s.id === selectedSub)
-                    .map(s => (
-                      <TouchableOpacity
-                        key={s.id}
-                        style={[styles.subChip, selectedSub === s.id && styles.catChipActive]}
-                        onPress={() => setSelectedSub(selectedSub === s.id ? null : s.id)}
-                      >
-                        <Text style={[styles.catChipText, selectedSub === s.id && styles.catChipTextActive]}>
-                          {s.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                  {subcategories.map(s => (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[styles.subChip, selectedSub === s.id && styles.subChipActive]}
+                      onPress={() => setSelectedSub(selectedSub === s.id ? null : s.id)}
+                    >
+                      <Text style={[styles.subChipText, selectedSub === s.id && styles.subChipTextActive]}>
+                        {s.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             )}
           </View>
         )}
 
-        {/* Custom Date */}
+        {/* Date Selection */}
         <View style={styles.section}>
+          <Text style={styles.label}>Tanggal Transaksi</Text>
           <TouchableOpacity
-            style={styles.dateToggle}
-            onPress={() => setUseCustomDate(!useCustomDate)}
+            style={styles.datePickerBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowDatePicker(true);
+            }}
           >
-            <View style={[styles.checkbox, useCustomDate && styles.checkboxActive]}>
-              {useCustomDate && <Ionicons name="checkmark" size={12} color="#fff" />}
+            <View style={styles.datePickerIcon}>
+              <Ionicons name="calendar-outline" size={18} color={colors.brand} />
             </View>
-            <Text style={styles.dateToggleText}>Atur tanggal berbeda (bukan hari ini)</Text>
+            <Text style={styles.datePickerText}>{formatDate(date.toISOString())}</Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
           </TouchableOpacity>
-          {useCustomDate && (
-            <TextInput
-              style={styles.inputBox}
-              placeholder="DD/MM/YYYY (contoh: 15/04/2025)"
-              placeholderTextColor="#2a3550"
-              value={customDateStr}
-              onChangeText={setCustomDateStr}
-              keyboardType="number-pad"
+          {showDatePicker && (
+            <DateTimePicker
+              value={date}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={onDateChange}
+              maximumDate={new Date()}
             />
           )}
         </View>
@@ -399,7 +388,7 @@ export default function TransactionScreen({ navigation, route }) {
           <TextInput
             style={styles.inputBox}
             placeholder={type === 'transfer' ? 'Keterangan transfer...' : 'Catatan singkat...'}
-            placeholderTextColor="#2a3550"
+            placeholderTextColor={colors.textFaint}
             value={desc}
             onChangeText={setDesc}
             multiline
@@ -408,7 +397,7 @@ export default function TransactionScreen({ navigation, route }) {
 
       </ScrollView>
 
-      {/* Save Button */}
+      {/* Save Button Area */}
       <View style={styles.saveArea}>
         {isEditMode && (
           <Text style={styles.editModeLabel}>Mode Edit Transaksi</Text>
@@ -416,18 +405,15 @@ export default function TransactionScreen({ navigation, route }) {
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {isEditMode && (
             <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: '#1a2540', flex: 1 }]}
-              onPress={() => {
-                navigation.setParams({ editTx: undefined });
-                setType('expense');
-              }}
+              style={[styles.saveBtn, { backgroundColor: colors.bgElevated, flex: 1 }]}
+              onPress={() => navigation.goBack()}
             >
-              <Text style={[styles.saveBtnText, { color: '#ff4d6d' }]}>Batal</Text>
+              <Text style={[styles.saveBtnText, { color: colors.expense }]}>Batal</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: isEditMode ? '#7c6aff' : activeType.color, flex: 2 }, saving && { opacity: 0.6 }]}
+            style={[styles.saveBtn, { backgroundColor: isEditMode ? colors.brand : activeType.color, flex: 2 }, saving && { opacity: 0.6 }]}
             onPress={handleSave}
             disabled={saving}
           >
@@ -451,80 +437,99 @@ export default function TransactionScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#060d1a' },
-
+const makeStyles = (colors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgPrimary },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 40 },
   typeSwitcher: {
-    flexDirection: 'row', margin: 16, backgroundColor: '#0d1526',
-    borderRadius: 14, padding: 4, borderWidth: 1, borderColor: '#1a2540',
+    flexDirection: 'row', margin: 16,
+    borderRadius: 14, padding: 4, borderWidth: 1,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
   },
   typeBtn: {
     flex: 1, flexDirection: 'row', paddingVertical: 10, alignItems: 'center',
     justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'transparent',
   },
-  typeText: { color: '#4a5568', fontWeight: '700', fontSize: 12 },
+  typeText: { fontWeight: '700', fontSize: 12 },
 
   amountCard: {
-    marginHorizontal: 16, backgroundColor: '#0d1526', borderRadius: 16,
-    padding: 18, marginBottom: 16, borderWidth: 1, borderColor: '#1a2540',
+    marginHorizontal: 16, borderRadius: 16,
+    padding: 18, marginBottom: 16, borderWidth: 1,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
   },
-  amountLabel: { color: '#4a5568', fontSize: 12, fontWeight: '600', marginBottom: 8 },
-  amountInput: { fontSize: 32, fontWeight: '800', marginBottom: 16 },
+  amountLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8, color: colors.textSecondary },
+  amountInput: { fontSize: 32, fontWeight: '800', marginBottom: 16, color: colors.textPrimary },
   quickAmountsScroll: { flexGrow: 0 },
   quickBtn: {
-    paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#1a2540',
+    paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 10, marginRight: 8,
+    backgroundColor: colors.bgElevated,
   },
-  quickBtnText: { color: '#8892a4', fontSize: 12, fontWeight: '700' },
+  quickBtnText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
 
   section: { marginHorizontal: 16, marginBottom: 16 },
-  label: { color: '#8892a4', fontSize: 12, fontWeight: '700', marginBottom: 10, letterSpacing: 0.3 },
+  label: { fontSize: 12, fontWeight: '700', marginBottom: 10, letterSpacing: 0.3, color: colors.textSecondary },
 
   walletChip: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1a2540',
-    borderRadius: 12, marginRight: 8,
+    borderWidth: 1, borderRadius: 12, marginRight: 8,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
   },
   walletDot: { width: 8, height: 8, borderRadius: 4, marginRight: 7 },
-  walletChipText: { color: '#8892a4', fontSize: 13, fontWeight: '600' },
+  walletChipText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  walletChipTextActive: { color: colors.textPrimary },
 
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   catChip: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9,
-    backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1a2540', borderRadius: 12,
+    borderWidth: 1, borderRadius: 12,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
   },
-  catChipActive: { backgroundColor: '#7c6aff22', borderColor: '#7c6aff' },
-  catChipText: { color: '#8892a4', fontSize: 13 },
-  catChipTextActive: { color: '#7c6aff', fontWeight: '700' },
-  fixedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f59e0b', marginRight: 6 },
+  catChipActive: { backgroundColor: colors.brandBg, borderColor: colors.brand },
+  catChipText: { fontSize: 13, color: colors.textMuted },
+  catChipTextActive: { color: colors.brand, fontWeight: '700' },
+  fixedDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
 
-  subSection: { marginTop: 12, backgroundColor: '#0d1526', borderRadius: 12, padding: 12 },
+  subSection: { marginTop: 12, borderRadius: 12, padding: 12, backgroundColor: colors.bgElevated },
   subChip: {
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: '#060d1a', borderWidth: 1, borderColor: '#1a2540', borderRadius: 10,
+    borderWidth: 1, borderRadius: 10,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
   },
+  subChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  subChipText: { fontSize: 12, color: colors.textMuted },
+  subChipTextActive: { color: '#fff' },
 
   inputBox: {
-    backgroundColor: '#0d1526', color: '#e8edf5', fontSize: 15,
-    padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#1a2540',
+    fontSize: 15, padding: 14, borderRadius: 12, borderWidth: 1,
+    backgroundColor: colors.bgCard, borderColor: colors.border, color: colors.textPrimary,
   },
 
   dateToggle: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   checkbox: {
-    width: 20, height: 20, borderRadius: 6, borderWidth: 1, borderColor: '#1a2540',
-    backgroundColor: '#0d1526', justifyContent: 'center', alignItems: 'center', marginRight: 10,
+    width: 20, height: 20, borderRadius: 6, borderWidth: 1,
+    justifyContent: 'center', alignItems: 'center', marginRight: 10,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
   },
-  checkboxActive: { backgroundColor: '#7c6aff', borderColor: '#7c6aff' },
-  dateToggleText: { color: '#8892a4', fontSize: 13 },
+  checkboxActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  dateToggleText: { fontSize: 13, color: colors.textSecondary },
 
   saveArea: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#060d1a', padding: 16, paddingBottom: 28,
-    borderTopWidth: 1, borderTopColor: '#1a2540',
+    padding: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+    borderTopWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgCard,
   },
+  datePickerBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    padding: 14, borderRadius: 12, borderWidth: 1,
+    backgroundColor: colors.bgCard, borderColor: colors.border,
+  },
+  datePickerIcon: { marginRight: 12 },
+  datePickerText: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   editModeLabel: {
-    color: '#7c6aff', fontSize: 11, fontWeight: '700', textAlign: 'center',
+    fontSize: 11, fontWeight: '700', textAlign: 'center',
     letterSpacing: 0.5, marginBottom: 8, textTransform: 'uppercase',
+    color: colors.brand,
   },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
