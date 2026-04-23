@@ -115,8 +115,8 @@ export default function DashboardScreen({ navigation }) {
   const renderHeader = useMemo(() => {
     const isLight = currentTheme === 'light';
     const heroGradient = isLight 
-      ? [colors.brand, "#ff8c42"] 
-      : [colors.bgCard, "#252522"]; // Titanium gelap murni agar teks hijau/merah pop
+      ? [colors.brand, "#0066CC"] 
+      : [colors.bgCard, colors.bgDeep];
 
     return (
       <View style={styles.header}>
@@ -255,7 +255,7 @@ export default function DashboardScreen({ navigation }) {
               <Text style={styles.filterToggleLabel}>
                 {FILTER_OPTIONS.find(f => f.key === filter)?.label}
               </Text>
-              <Ionicons name={isFilterExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.brand} />
+              <Ionicons name={isFilterExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.secondary} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('Mutasi')}>
               <Text style={styles.seeAll}>Lihat Semua</Text>
@@ -293,7 +293,7 @@ export default function DashboardScreen({ navigation }) {
   if (initialLoading) {
     return (
       <View style={[styles.loadingArea, { backgroundColor: colors.bgPrimary }]}>
-        <ActivityIndicator size="large" color={colors.brand} />
+        <ActivityIndicator size="large" color={colors.secondary} />
       </View>
     );
   }
@@ -477,8 +477,8 @@ const makeStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderColor: colors.border,
   },
-  filterToggleLabel: { fontSize: 12, fontWeight: '700', color: colors.brand },
-  seeAll: { fontSize: 12, fontWeight: '700', color: colors.brand },
+  filterToggleLabel: { fontSize: 12, fontWeight: '700', color: colors.secondary },
+  seeAll: { fontSize: 12, fontWeight: '700', color: colors.secondary },
   filterScroll: { marginBottom: 16 },
   filterContent: { paddingHorizontal: 16, gap: 10 },
   chip: {
@@ -489,7 +489,7 @@ const makeStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderColor: colors.border,
   },
-  chipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  chipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   chipText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
   chipTextActive: { color: '#fff' },
   

@@ -37,24 +37,22 @@ const PANTONE_SILVER   = "#BCBEC0"; // Pantone 420 C   — secondary
 const TITANIUM_NATURAL = "#878681"; // Natural Titanium — aksen metalik
 
 const WALLET_TYPES = [
-  { key: "cash",       label: "Tunai",   icon: "wallet",         color: PANTONE_ORANGE },
-  { key: "bank",       label: "Bank",    icon: "business",       color: "#0ea5e9" },
+  { key: "cash",       label: "Tunai",   icon: "wallet",         color: "#00478F" },
+  { key: "bank",       label: "Bank",    icon: "business",       color: "#0066CC" },
   { key: "ewallet",   label: "E-Wallet", icon: "phone-portrait", color: "#14b8a6" },
   { key: "investment", label: "Investasi", icon: "trending-up", color: "#30d9a0" },
-  { key: "credit",    label: "Kredit",   icon: "card",           color: "#f59e0b" },
+  { key: "credit",    label: "Kredit",   icon: "card",           color: "#00478F" },
 ];
 
 const WALLET_COLORS = [
-  PANTONE_ORANGE,   // #FF5800 — oranye brand
-  PANTONE_SILVER,   // #BCBEC0 — silver Pantone
-  TITANIUM_NATURAL, // #878681 — Natural Titanium
+  "#00478F",        // Biru BCA
+  "#0066CC",        // Biru BCA Terang
+  "#FBBF24",        // Emas BCA
+  "#BCBEC0",        // Silver
+  "#878681",        // Natural Titanium
   "#00c896",        // Hijau mint
-  "#30d9a0",        // Hijau hangat
-  "#0ea5e9",        // Biru sky
   "#14b8a6",        // Teal
-  "#ff4d6d",        // Merah muda
-  "#f59e0b",        // Amber
-  "#ec4899",        // Pink
+  "#ff4d6d",        // Merah
 ];
 
 function Section({ title, subtitle, children, styles }) {
@@ -434,8 +432,8 @@ export default function SettingsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.brand}
-            colors={[colors.brand]}
+            tintColor={colors.secondary}
+            colors={[colors.secondary]}
           />
         }
       >
@@ -449,7 +447,7 @@ export default function SettingsScreen() {
               style={[
                 styles.tab,
                 activeTab === tab.key && {
-                  backgroundColor: colors.brand + "1a",
+                  backgroundColor: colors.secondary + "1a",
                 },
               ]}
               onPress={() => setActiveTab(tab.key)}
@@ -457,14 +455,14 @@ export default function SettingsScreen() {
               <Ionicons
                 name={tab.icon}
                 size={16}
-                color={activeTab === tab.key ? colors.brand : colors.textMuted}
+                color={activeTab === tab.key ? colors.secondary : colors.textMuted}
               />
               <Text
                 style={[
                   styles.tabText,
                   {
                     color:
-                      activeTab === tab.key ? colors.brand : colors.textMuted,
+                      activeTab === tab.key ? colors.secondary : colors.textMuted,
                   },
                 ]}
               >
@@ -563,7 +561,7 @@ export default function SettingsScreen() {
                 <Switch
                   value={excludeFromTotal}
                   onValueChange={setExcludeFromTotal}
-                  trackColor={{ false: colors.bgElevated, true: colors.brand }}
+                  trackColor={{ false: colors.bgElevated, true: colors.secondary }}
                   thumbColor={excludeFromTotal ? "#fff" : colors.textMuted}
                 />
               </View>

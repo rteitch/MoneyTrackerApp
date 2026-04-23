@@ -5,131 +5,98 @@
  * Mendukung Dark Mode dan Light Mode.
  *
  * Palette Warna Utama Aplikasi (iPhone Pantone):
- * - Brand    : #FF5800 (Pantone 1505 C)  — oranye utama di SEMUA mode
- * - Secondary: #BCBEC0 (Pantone 420 C)  — abu-abu warm sebagai pendukung
+ * - Brand    : #00478F (Pantone 1505 C)  — biru utama di SEMUA mode
+ * - Secondary: #003399 (BCA Blue)       — biru untuk navigasi dan keamanan
  * - Titanium : #878681 (Natural Titanium)— metalik netral sebagai aksen
  *
  * Theme modes:
- * - 'dark'   : Titanium grey dark — brand oranye #FF5800 di atas abu titanium
- * - 'light'  : Clean light — brand oranye #FF5800 di atas background terang
+ * - 'dark'   : Titanium grey dark — brand biru #00478F di atas abu titanium
+ * - 'light'  : Clean light — brand biru #00478F di atas background terang
  * - 'system' : Mengikuti preferensi sistem (dark/light)
  */
 
-// ─── Pantone / iPhone 15 Palette ────────────────────────────────────────────
-const PANTONE_ORANGE   = "#FF5800"; // Pantone 1505 C  — brand utama
-const PANTONE_SILVER   = "#BCBEC0"; // Pantone 420 C   — secondary/border
-const TITANIUM_NATURAL = "#878681"; // Natural Titanium — aksen metalik
+// ─── Pure BCA Premium Palette ────────────────────────────────────────────
+const BCA_BLUE_MODERN  = "#00478F"; // Biru BCA modern (Primary/Trust)
+const BCA_LIGHT_BLUE   = "#0066CC"; // Biru BCA terang (Secondary/Accent)
+const NATURAL_TITANIUM = "#878681"; // Natural Titanium (Muted)
 
 const DarkColors = {
-  // Backgrounds — Titanium Grey (Natural Titanium aesthetic)
-  bgPrimary:  "#1c1c1a", // Titanium gelap utama
-  bgCard:     "#252522", // Kartu — satu level lebih terang
-  bgElevated: "#303030", // Elevated surface — abu sedang
-  bgDeep:     "#111110", // Paling gelap (header, tab bar)
+  // Backgrounds — Deep Navy Charcoal
+  bgPrimary:  "#0F172A", // Slate-900 (Navy gelap elegan)
+  bgCard:     "#1E293B", // Slate-800
+  bgElevated: "#334155", // Slate-700
+  bgDeep:     "#020617", // Slate-950
 
   // Theme Specific Backgrounds
-  // Theme Specific Backgrounds
-  brandBg:   "#3d1800", // Oranye sangat gelap sebagai tint brand (diperjelas)
-  incomeBg:  "#003d2e", // Hijau gelap yang lebih terlihat
-  expenseBg: "#3d0f1a", // Merah gelap yang lebih terlihat
-  warningBg: "#3d2a00",
-  infoBg:    "#0e1a3d",
+  brandBg:   "#00478F20", // Biru BCA gelap
+  incomeBg:  "#10B98120", 
+  expenseBg: "#EF444420", 
+  warningBg: "#FBBF2415", // Tint emas transparan
+  infoBg:    "#0066CC20", // Biru BCA terang transparan
 
-  // Text — ivory warm untuk kontras dengan titanium
-  textPrimary:   "#f5f4ee", // Ivory warm — paling terang
-  textSecondary: PANTONE_SILVER,   // #BCBEC0 — Pantone 420 C
-  textMuted:     TITANIUM_NATURAL, // #878681 — Natural Titanium
-  textFaint:     "#4a4a42",
-  textFaintest:  "#272720",
+  // Text
+  textPrimary:   "#F8F9FA", // Off-white
+  textSecondary: "#CBD5E1", 
+  textMuted:     NATURAL_TITANIUM, 
+  textFaint:     "#64748B",
+  textFaintest:  "#475569",
 
-  // Borders — titanium subtle
-  border:      "#38382e", // Abu titanium gelap
-  borderLight: "#2a2a24",
+  // Borders
+  border:      "#334155", 
+  borderLight: "#475569",
 
   // Overlays
-  overlay:     "rgba(10,10,8,0.60)",
-  overlayDark: "rgba(10,10,8,0.85)",
+  overlay:     "rgba(0,0,0,0.60)",
+  overlayDark: "rgba(0,0,0,0.85)",
 };
 
 const LightColors = {
-  // Backgrounds
-  bgPrimary: "#f8fafc",
-  bgCard: "#ffffff",
-  bgElevated: "#f1f5f9",
-  bgDeep: "#e2e8f0",
+  // Backgrounds — Clean White & Off-White
+  bgPrimary: "#F8FAFC", // Background Slate-50 yang sejuk
+  bgCard: "#FFFFFF",    // Permukaan kartu putih bersih
+  bgElevated: "#F1F5F9",
+  bgDeep: "#E2E8F0",
 
   // Theme Specific Backgrounds
-  brandBg:   "#FF580015", // Oranye transparan di atas putih
-  incomeBg:  "#00c89615",
-  expenseBg: "#ff4d6d15",
-  warningBg: "#f59e0b15",
-  infoBg:    "#0ea5e915",
+  brandBg:   BCA_BLUE_MODERN + "15",
+  incomeBg:  "#10B98115",
+  expenseBg: "#EF444415",
+  warningBg: "#FBBF2415",
+  infoBg:    BCA_LIGHT_BLUE + "15",
 
   // Text
-  textPrimary: "#0f172a",
+  textPrimary: "#0F172A", // Slate-900
   textSecondary: "#475569",
-  textMuted: "#94a3b8",
-  textFaint: "#cbd5e1",
-  textFaintest: "#f1f5f9",
+  textMuted: NATURAL_TITANIUM,
+  textFaint: "#94A3B8",
+  textFaintest: "#CBD5E1",
 
   // Borders
-  border: "#e2e8f0",
-  borderLight: "#f1f5f9",
+  border: "#E2E8F0",
+  borderLight: "#F1F5F9",
 
   // Overlays
   overlay: "rgba(0,0,0,0.3)",
   overlayDark: "rgba(0,0,0,0.5)",
 };
 
-const iPhone15Colors = {
-  // Backgrounds — warm titanium dengan sedikit coklat-gelap agar oranye pop
-  bgPrimary:  "#18180f", // Titanium sangat gelap (kekuningan gelap)
-  bgCard:     "#222218", // Kartu sedikit lebih terang
-  bgElevated: "#2c2c22", // Elevated surface
-  bgDeep:     "#0e0e0a", // Paling gelap
+const iPhone15Colors = DarkColors;
 
-  // Theme Specific Backgrounds — menggunakan Pantone Orange sebagai brand
-  brandBg:   PANTONE_ORANGE + "20", // Oranye transparan 12%
-  incomeBg:  "#00c89615",
-  expenseBg: "#ff4d6d15",
-  warningBg: "#f59e0b15",
-  infoBg:    "#0ea5e915",
-
-  // Text — warm ivory + Pantone Silver hierarchy
-  textPrimary:   "#f5f4ee",           // Ivory warm
-  textSecondary: PANTONE_SILVER,      // #BCBEC0 — sekunder Pantone 420 C
-  textMuted:     TITANIUM_NATURAL,    // #878681 — Natural Titanium
-  textFaint:     "#4a4a42",           // Lebih gelap
-  textFaintest:  "#272720",
-
-  // Borders — menggunakan Natural Titanium sebagai border halus
-  border:      "#36362c",             // Warm dark border
-  borderLight: TITANIUM_NATURAL + "40", // Titanium transparan sebagai garis halus
-
-  // Overlays
-  overlay:     "rgba(10,10,6,0.55)",
-  overlayDark: "rgba(10,10,6,0.80)",
-
-  // Extra tokens khusus iPhone-15
-  titanium:    TITANIUM_NATURAL,      // #878681 — untuk ornamen/badge metalik
-  pantone:     PANTONE_SILVER,        // #BCBEC0 — untuk chip/border sekunder
-};
-
-// ─── Common colors — #FF5800 sebagai brand utama SEMUA mode ─────────────────
+// ─── Common colors ──────────────────────────────────────────────────────────
 const CommonColors = {
-  brand:   PANTONE_ORANGE,  // #FF5800 — oranye utama universal
-  income:  "#00c896",       // Deep Emerald Green (lebih premium)
-  expense: "#ff4d6d",       // Rose Coral Red
-  warning: "#f59e0b",
-  info:    "#0ea5e9",
+  brand:     BCA_BLUE_MODERN, // Biru untuk Card Utama, Header, Tombol Simpan
+  secondary: BCA_LIGHT_BLUE,  // Biru terang untuk Badge, Filter Aktif, "Lihat Semua"
+  income:    "#10B981",       // Fresh Emerald
+  expense:   "#EF4444",       // Crisp Red
+  warning:   "#FBBF24",       // Kuning Emas BCA
+  info:      BCA_LIGHT_BLUE,
 };
 
 export const getThemeColors = (theme = "dark") => {
   if (theme === "light") {
-    return { ...LightColors, ...CommonColors };
+    return { ...CommonColors, ...LightColors };
   }
-  // 'dark' | 'system' | fallback — semua pakai titanium grey dark
-  return { ...DarkColors, ...CommonColors };
+  return { ...CommonColors, ...DarkColors };
 };
 
 // Legacy Export for compatibility while transitioning

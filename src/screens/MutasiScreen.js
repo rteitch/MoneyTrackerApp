@@ -37,9 +37,9 @@ import {
 
 const TYPE_FILTERS = [
   { key: "all", label: "Semua", icon: "list", color: "#878681" },
-  { key: "expense", label: "Keluar", icon: "arrow-down-circle", color: "#ff4d6d" },
-  { key: "income", label: "Masuk", icon: "arrow-up-circle", color: "#00c896" },
-  { key: "transfer", label: "Transfer", icon: "swap-horizontal", color: "#FF5800" },
+  { key: "expense", label: "Keluar", icon: "arrow-down-circle", color: "#EF4444" },
+  { key: "income", label: "Masuk", icon: "arrow-up-circle", color: "#10B981" },
+  { key: "transfer", label: "Transfer", icon: "swap-horizontal", color: "#0066CC" },
 ];
 
 const PERIOD_FILTERS = [
@@ -318,7 +318,7 @@ export default function MutasiScreen({ navigation, route }) {
           )}
         </View>
         <TouchableOpacity style={styles.exportBtn} onPress={handleExportCSV}>
-          <Ionicons name="download-outline" size={20} color={colors.brand} />
+          <Ionicons name="download-outline" size={20} color={colors.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -472,7 +472,7 @@ export default function MutasiScreen({ navigation, route }) {
         ListFooterComponent={
           loadingMore ? (
             <View style={{ padding: 20 }}>
-              <ActivityIndicator size="small" color={colors.brand} />
+              <ActivityIndicator size="small" color={colors.secondary} />
             </View>
           ) : null
         }
@@ -503,12 +503,12 @@ export default function MutasiScreen({ navigation, route }) {
           )
         }
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
       />
 
       {loading && !refreshing && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={colors.brand} />
+          <ActivityIndicator size="large" color={colors.secondary} />
         </View>
       )}
 
@@ -573,9 +573,9 @@ const makeStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 12, height: 40, borderRadius: 10, 
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
   },
-  filterToggleActive: { backgroundColor: colors.brandBg, borderColor: colors.brand },
+  filterToggleActive: { backgroundColor: colors.infoBg, borderColor: colors.secondary },
   filterToggleLabel: { fontSize: 12, flex: 1, color: colors.textMuted },
-  filterToggleLabelActive: { color: colors.textPrimary, fontWeight: '700' },
+  filterToggleLabelActive: { color: colors.secondary, fontWeight: '700' },
 
   resetBtn: { 
     width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center',

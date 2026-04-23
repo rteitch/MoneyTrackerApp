@@ -29,10 +29,10 @@ import {
 } from '../db/database';
 import { formatRupiah } from '../utils/formatting';
 
-// Palette chart — #FF5800 di posisi 1 (kategori terbesar), tidak ada ungu
+// Palette chart — Biru BCA di posisi 1 (kategori terbesar)
 const COLOR_PALETTE = [
-  '#FF5800', '#00c896', '#ff4d6d', '#f59e0b',
-  '#0ea5e9', '#ec4899', '#14b8a6', '#30d9a0',
+  '#00478F', '#10B981', '#EF4444', '#f59e0b',
+  '#0ea5e9', '#ec4899', '#14b8a6', '#0066CC',
   '#BCBEC0', '#34d399', '#fb923c', '#60a5fa',
 ];
 
@@ -462,10 +462,10 @@ export default function AnalyticsScreen() {
             setIsFilterExpanded(!isFilterExpanded);
           }}
         >
-          <Text style={[styles.filterToggleLabel, { color: colors.brand }]}>
+          <Text style={[styles.filterToggleLabel, { color: colors.secondary }]}>
             {FILTERS.find(f => f.key === filter)?.label}
           </Text>
-          <Ionicons name={isFilterExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.brand} />
+          <Ionicons name={isFilterExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -483,7 +483,7 @@ export default function AnalyticsScreen() {
               style={[
                 styles.chip,
                 { backgroundColor: colors.bgCard, borderColor: colors.border },
-                filter === f.key && { backgroundColor: colors.brand, borderColor: colors.brand }
+                filter === f.key && { backgroundColor: colors.secondary, borderColor: colors.secondary }
               ]}
               onPress={() => {
                 Haptics.selectionAsync();
