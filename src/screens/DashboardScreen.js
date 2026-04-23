@@ -115,8 +115,8 @@ export default function DashboardScreen({ navigation }) {
   const renderHeader = useMemo(() => {
     const isLight = currentTheme === 'light';
     const heroGradient = isLight 
-      ? [colors.brand, '#9385ff'] 
-      : [colors.bgCard, colors.brandBg];
+      ? [colors.brand, "#ff8c42"] 
+      : [colors.bgCard, "#252522"]; // Titanium gelap murni agar teks hijau/merah pop
 
     return (
       <View style={styles.header}>
@@ -132,7 +132,16 @@ export default function DashboardScreen({ navigation }) {
           colors={heroGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
+          style={[
+            styles.heroCard,
+            isLight && { 
+              borderWidth: 0, 
+              borderTopWidth: 0, // Inilah penyebab glitch-nya
+              shadowColor: '#000', // Gunakan shadow hitam halus untuk mode terang agar lebih bersih
+              shadowOpacity: 0.12,
+              elevation: 0 
+            }
+          ]}
         >
           <View style={styles.heroDecoration1} />
           <View style={styles.heroDecoration2} />
@@ -159,7 +168,7 @@ export default function DashboardScreen({ navigation }) {
               </View>
               <View>
                 <Text style={styles.heroStatLabel}>Pemasukan</Text>
-                <Text style={styles.heroStatVal}>
+                <Text style={[styles.heroStatVal, { color: isLight ? '#fff' : colors.income }]}>
                   + <CountUp value={stats.income} />
                 </Text>
               </View>
@@ -171,7 +180,7 @@ export default function DashboardScreen({ navigation }) {
               </View>
               <View>
                 <Text style={styles.heroStatLabel}>Pengeluaran</Text>
-                <Text style={styles.heroStatVal}>
+                <Text style={[styles.heroStatVal, { color: isLight ? '#fff' : colors.expense }]}>
                   − <CountUp value={stats.expense} />
                 </Text>
               </View>
@@ -190,7 +199,16 @@ export default function DashboardScreen({ navigation }) {
           renderItem={({ item }) => (
             <TouchableOpacity
               activeOpacity={0.7}
-              style={[styles.walletCard, { borderLeftColor: item.color }]}
+              style={[
+                styles.walletCard, 
+                { 
+                  borderLeftColor: item.color,
+                  shadowColor: item.color, // Glow tipis mengikuti warna dompet
+                  shadowOpacity: currentTheme === 'light' ? 0.15 : 0.25,
+                  shadowRadius: 6,
+                  elevation: 6
+                }
+              ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 navigation.navigate('Mutasi', { accountId: item.id, accountName: item.name });
@@ -343,8 +361,8 @@ const makeStyles = (colors) => StyleSheet.create({
     paddingTop: 16,
     marginBottom: 20,
   },
-  greeting: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  userName: { fontSize: 20, fontWeight: '800', color: colors.textPrimary },
+  greeting: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, letterSpacing: 0.5 },
+  userName: { fontSize: 22, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5 },
   notifBtn: {
     width: 44,
     height: 44,
@@ -362,11 +380,15 @@ const makeStyles = (colors) => StyleSheet.create({
     marginBottom: 24,
     overflow: 'hidden',
     position: 'relative',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    elevation: 12,
+    shadowColor: colors.brand, // Glow oranye
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4, // Shadow lebih kuat
+    shadowRadius: 16,
+    borderTopWidth: 3, // Garis aksen oranye di atas
+    borderTopColor: colors.brand,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   heroDecoration1: {
     position: 'absolute',
@@ -399,17 +421,23 @@ const makeStyles = (colors) => StyleSheet.create({
   savingsBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   savingsText: { fontSize: 10, fontWeight: '800' },
   
-  sectionLabel: { fontSize: 16, fontWeight: '800', marginLeft: 20, marginBottom: 16, color: colors.textPrimary },
+  sectionLabel: { fontSize: 17, fontWeight: '800', marginLeft: 20, marginBottom: 16, color: colors.textPrimary, letterSpacing: 0.3 },
   walletScroll: { paddingLeft: 16, paddingRight: 8, marginBottom: 24 },
   walletCard: {
-    width: 150,
-    borderRadius: 20,
+    width: 155,
+    borderRadius: 22,
     padding: 16,
-    marginRight: 12,
+    marginRight: 14,
     borderWidth: 1,
-    borderLeftWidth: 4,
+    borderLeftWidth: 3,
     backgroundColor: colors.bgCard,
     borderColor: colors.border,
+    // Titanium Depth
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   walletDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 10 },
   walletType: { fontSize: 9, fontWeight: '800', marginBottom: 4, color: colors.textMuted },

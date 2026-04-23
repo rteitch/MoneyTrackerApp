@@ -5,7 +5,8 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+// Pantone 1505 C — iPhone Orange (warna brand utama)
+const tintColorLight = '#FF5800';
 const tintColorDark = '#fff';
 
 export const Colors = {

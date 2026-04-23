@@ -29,10 +29,11 @@ import {
 } from '../db/database';
 import { formatRupiah } from '../utils/formatting';
 
+// Palette chart — #FF5800 di posisi 1 (kategori terbesar), tidak ada ungu
 const COLOR_PALETTE = [
-  '#7c6aff', '#00c896', '#ff4d6d', '#f59e0b',
-  '#0ea5e9', '#ec4899', '#14b8a6', '#f97316',
-  '#a78bfa', '#34d399', '#fb923c', '#60a5fa',
+  '#FF5800', '#00c896', '#ff4d6d', '#f59e0b',
+  '#0ea5e9', '#ec4899', '#14b8a6', '#30d9a0',
+  '#BCBEC0', '#34d399', '#fb923c', '#60a5fa',
 ];
 
 const FILTERS = [
@@ -210,11 +211,12 @@ const makeStyles = (colors) => StyleSheet.create({
 
   // Health Card
   healthCard: {
-    marginHorizontal: 16, borderRadius: 20,
+    marginHorizontal: 16, borderRadius: 24,
     padding: 20, marginBottom: 16, borderWidth: 1,
+    borderTopWidth: 3,
     flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
-    elevation: 4, shadowColor: colors.brand, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 10,
+    elevation: 10, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 12,
   },
   healthLeft: { flex: 1, marginRight: 16 },
   healthBadge: {
@@ -266,7 +268,8 @@ const makeStyles = (colors) => StyleSheet.create({
   tapHint: { fontSize: 11, marginBottom: 14, marginTop: 6, fontStyle: 'italic' },
   breakdownItem: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingVertical: 14, paddingHorizontal: 12, borderRadius: 16,
+    marginBottom: 8, borderWidth: 1, borderColor: 'transparent',
     gap: 10,
   },
   breakdownItemActive: { borderRadius: 10, paddingHorizontal: 6, marginHorizontal: -6, backgroundColor: colors.bgElevated, borderBottomColor: 'transparent' },
@@ -274,8 +277,8 @@ const makeStyles = (colors) => StyleSheet.create({
   catRank: { fontSize: 11, fontWeight: '800' },
   breakdownMid: { flex: 1 },
   breakdownName: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  barTrack: { height: 4, borderRadius: 2, backgroundColor: colors.border },
-  barFill: { height: 4, borderRadius: 2 },
+  barTrack: { height: 6, borderRadius: 3, backgroundColor: colors.bgElevated, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 3 },
   breakdownRight: { alignItems: 'flex-end', minWidth: 80 },
   breakdownAmt: { fontSize: 13, fontWeight: '700' },
   breakdownPct: { fontSize: 11, marginTop: 2, color: colors.textMuted },
@@ -496,7 +499,15 @@ export default function AnalyticsScreen() {
 
       {/* ── Health Score Card ── */}
       <View
-        style={[styles.healthCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+        style={[
+          styles.healthCard, 
+          { 
+            backgroundColor: colors.bgCard, 
+            borderColor: colors.border,
+            shadowColor: sc.color, // Glow dinamis sesuai status
+            borderTopColor: sc.color // Garis aksen juga dinamis
+          }
+        ]}
       >
         <View style={styles.healthLeft}>
           <View style={[styles.healthBadge, { backgroundColor: sc.color + '20' }]}>

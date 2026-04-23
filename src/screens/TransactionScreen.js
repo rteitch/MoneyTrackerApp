@@ -241,7 +241,11 @@ export default function TransactionScreen({ navigation, route }) {
   const activeType = TYPE_OPTIONS.find(t => t.key === type);
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView 
+      style={styles.root} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
         {/* Type Switcher */}
@@ -249,7 +253,13 @@ export default function TransactionScreen({ navigation, route }) {
           {TYPE_OPTIONS.map(t => (
             <TouchableOpacity
               key={t.key}
-              style={[styles.typeBtn, type === t.key && { backgroundColor: t.bg, borderColor: t.color }]}
+              style={[
+                styles.typeBtn, 
+                type === t.key && { 
+                  backgroundColor: t.bg, 
+                  borderColor: t.color,
+                }
+              ]}
               onPress={() => handleTypeChange(t.key)}
             >
               <Ionicons name={t.icon} size={14} color={type === t.key ? t.color : colors.textMuted} style={{ marginRight: 5 }} />
@@ -437,7 +447,7 @@ export default function TransactionScreen({ navigation, route }) {
           )}
 
           <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: isEditMode ? colors.brand : activeType.color, flex: 2 }, saving && { opacity: 0.6 }]}
+            style={[styles.saveBtn, { backgroundColor: colors.brand, flex: 2 }, saving && { opacity: 0.6 }]}
             onPress={handleSave}
             disabled={saving}
           >
@@ -477,9 +487,14 @@ const makeStyles = (colors) => StyleSheet.create({
   typeText: { fontWeight: '700', fontSize: 12 },
 
   amountCard: {
-    marginHorizontal: 16, borderRadius: 16,
-    padding: 18, marginBottom: 16, borderWidth: 1,
+    marginHorizontal: 16, borderRadius: 24,
+    padding: 20, marginBottom: 20, borderWidth: 1,
     backgroundColor: colors.bgCard, borderColor: colors.border,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   amountLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8, color: colors.textSecondary },
   amountInput: { fontSize: 32, fontWeight: '800', marginBottom: 16, color: colors.textPrimary },

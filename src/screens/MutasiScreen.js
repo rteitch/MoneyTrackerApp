@@ -36,10 +36,10 @@ import {
 } from "../utils/formatting";
 
 const TYPE_FILTERS = [
-  { key: "all", label: "Semua", icon: "list" },
-  { key: "expense", label: "Keluar", icon: "arrow-down-circle" },
-  { key: "income", label: "Masuk", icon: "arrow-up-circle" },
-  { key: "transfer", label: "Transfer", icon: "swap-horizontal" },
+  { key: "all", label: "Semua", icon: "list", color: "#878681" },
+  { key: "expense", label: "Keluar", icon: "arrow-down-circle", color: "#ff4d6d" },
+  { key: "income", label: "Masuk", icon: "arrow-up-circle", color: "#00c896" },
+  { key: "transfer", label: "Transfer", icon: "swap-horizontal", color: "#FF5800" },
 ];
 
 const PERIOD_FILTERS = [
@@ -327,13 +327,17 @@ export default function MutasiScreen({ navigation, route }) {
         {TYPE_FILTERS.map((f) => (
           <TouchableOpacity
             key={f.key}
-            style={[styles.typeChip, typeFilter === f.key && styles.typeChipActive]}
+            activeOpacity={0.7}
+            style={[
+              styles.typeChip, 
+              typeFilter === f.key && { backgroundColor: f.color, borderColor: f.color }
+            ]}
             onPress={() => {
               Haptics.selectionAsync();
               setTypeFilter(f.key);
             }}
           >
-            <Ionicons name={f.icon} size={14} color={typeFilter === f.key ? colors.brand : colors.textMuted} style={{ marginRight: 6 }} />
+            <Ionicons name={f.icon} size={14} color={typeFilter === f.key ? "#fff" : colors.textMuted} style={{ marginRight: 6 }} />
             <Text style={[styles.typeChipText, typeFilter === f.key && styles.typeChipTextActive]}>
               {f.label}
             </Text>
@@ -422,12 +426,18 @@ export default function MutasiScreen({ navigation, route }) {
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Pemasukan</Text>
-            <Text style={[styles.summaryValue, { color: colors.income }]}>+ {formatRupiah(totalIncome)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="arrow-up-circle" size={14} color={colors.income} style={{ marginRight: 4 }} />
+              <Text style={[styles.summaryValue, { color: colors.income }]}>{formatRupiah(totalIncome)}</Text>
+            </View>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Pengeluaran</Text>
-            <Text style={[styles.summaryValue, { color: colors.expense }]}>− {formatRupiah(totalExpense)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="arrow-down-circle" size={14} color={colors.expense} style={{ marginRight: 4 }} />
+              <Text style={[styles.summaryValue, { color: colors.expense }]}>{formatRupiah(totalExpense)}</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -452,7 +462,6 @@ export default function MutasiScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
-      <StatusBar barStyle={colors.bgPrimary === '#ffffff' ? 'dark-content' : 'light-content'} />
       
       <FlatList
         data={groupedTransactions}
@@ -533,8 +542,9 @@ const makeStyles = (colors) => StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
   searchBox: { 
     flex: 1, flexDirection: 'row', alignItems: 'center', 
-    paddingHorizontal: 12, height: 44, borderRadius: 12, 
-    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
+    paddingHorizontal: 12, height: 44, borderRadius: 14, 
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard,
+    elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2
   },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.textPrimary },
   exportBtn: { 
@@ -546,12 +556,14 @@ const makeStyles = (colors) => StyleSheet.create({
   filterContent: { paddingHorizontal: 16, gap: 10 },
   typeChip: { 
     flexDirection: 'row', alignItems: 'center', 
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, 
-    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, 
+    borderWidth: 1, borderColor: colors.borderLight, backgroundColor: 'transparent' 
   },
-  typeChipActive: { backgroundColor: colors.brandBg, borderColor: colors.brand },
-  typeChipText: { fontSize: 12, color: colors.textMuted },
-  typeChipTextActive: { color: colors.brand, fontWeight: "700" },
+  typeChipActive: { 
+    // Dikosongkan karena warna background dan border di-handle inline, tanpa shadow kotor
+  },
+  typeChipText: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+  typeChipTextActive: { color: '#fff', fontWeight: "800" },
 
   combinedFilterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 16, alignItems: 'flex-end' },
   filterWrapper: { flex: 1 },
@@ -581,7 +593,9 @@ const makeStyles = (colors) => StyleSheet.create({
 
   summaryBar: { 
     marginHorizontal: 16, borderRadius: 16, padding: 16, marginBottom: 16, 
-    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgElevated,
+    // Titanium Plate Look
+    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4
   },
   summaryRow: { flexDirection: 'row', alignItems: 'center' },
   summaryItem: { flex: 1, alignItems: 'center' },

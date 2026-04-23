@@ -23,9 +23,9 @@ const Tab = createBottomTabNavigator();
 // Custom Loading Fallback
 function LoadingFallback() {
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#060d1a' }}>
-      <ActivityIndicator size="large" color="#7c6aff" />
-      <Text style={{ marginTop: 14, color: '#8892a4', fontSize: 14, letterSpacing: 0.5 }}>Memuat database...</Text>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1c1c1a' }}>
+      <ActivityIndicator size="large" color="#FF5800" />
+      <Text style={{ marginTop: 14, color: '#878681', fontSize: 14, letterSpacing: 0.5 }}>Memuat database...</Text>
     </View>
   );
 }
