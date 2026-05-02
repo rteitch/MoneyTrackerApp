@@ -128,10 +128,9 @@ export default function TransactionScreen({ navigation, route }) {
       load();
       return () => { 
         cancelled = true; 
-        // Reset form when leaving the screen to keep it clean
-        resetForm();
+        // Jangan reset form di cleanup — hanya reset setelah save/cancel berhasil
       };
-    }, [db, editTx, isEditMode, preselectedAccountId, resetForm])
+    }, [db, editTx, isEditMode, preselectedAccountId])
   );
 
   // Terpisah agar tidak me-reset nominal/isian form ketika tipe transaksi diganti
@@ -184,25 +183,30 @@ export default function TransactionScreen({ navigation, route }) {
   };
 
   const handleSave = async () => {
+    // ─── Validasi semua SEBELUM setSaving(true) agar tidak ada state leak ───
     const amt = parseCurrencyRaw(amount);
     if (amt <= 0) return showStatus('Nominal Tidak Valid', 'Masukkan nominal yang benar.', 'error');
     if (!accountId) return showStatus('Pilih Dompet', 'Harap pilih dompet asal terlebih dahulu.', 'error');
 
-    let txDate = date.toISOString();
+    if (type === 'transfer') {
+      if (!toAccountId) return showStatus('Pilih Tujuan', 'Pilih dompet tujuan transfer.', 'error');
+      if (accountId === toAccountId) return showStatus('Dompet Sama', 'Dompet asal dan tujuan tidak boleh sama.', 'error');
+    } else {
+      if (!selectedCat) return showStatus('Pilih Kategori', 'Harap pilih kategori transaksi.', 'error');
+      if (subcategories.length > 0 && !selectedSub)
+        return showStatus('Pilih Sub-Kategori', 'Kategori ini memiliki sub-kategori, mohon pilih salah satu.', 'error');
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const txDate = date.toISOString();
+    const txParams = {};
 
     setSaving(true);
     try {
-      const txParams = {};
-
       if (type === 'transfer') {
-        if (!toAccountId) return showStatus('Pilih Tujuan', 'Pilih dompet tujuan transfer.', 'error');
-        if (accountId === toAccountId) return showStatus('Dompet Sama', 'Dompet asal dan tujuan tidak boleh sama.', 'error');
         const adminFee = parseCurrencyRaw(fee);
         Object.assign(txParams, { amount: amt, fee: adminFee, type: 'transfer', account_id: accountId, to_account_id: toAccountId, description: desc, date: txDate });
       } else {
-        if (!selectedCat) return showStatus('Pilih Kategori', 'Harap pilih kategori transaksi.', 'error');
-        if (subcategories.length > 0 && !selectedSub)
-          return showStatus('Pilih Sub-Kategori', 'Kategori ini memiliki sub-kategori, mohon pilih salah satu.', 'error');
         Object.assign(txParams, { amount: amt, type, account_id: accountId, category_id: selectedCat, subcategory_id: selectedSub, description: desc, date: txDate });
       }
 

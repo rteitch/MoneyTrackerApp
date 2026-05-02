@@ -165,7 +165,7 @@ export default function MutasiScreen({ navigation, route }) {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-  const handleExportCSV = async () => {
+  const handleExportCSV = useCallback(async () => {
     if (transactions.length === 0) {
       Alert.alert(
         "Tidak Ada Data",
@@ -279,7 +279,7 @@ export default function MutasiScreen({ navigation, route }) {
     } finally {
       // do nothing
     }
-  };
+  }, [transactions, periodFilter, typeFilter, accountFilter, accounts]);
   const handleDeletePress = (item) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setTxToDelete(item);
@@ -443,14 +443,16 @@ export default function MutasiScreen({ navigation, route }) {
       </View>
       <Text style={styles.listHint}>💡 Ketuk transaksi untuk edit, tahan untuk hapus</Text>
     </View>
-  ), [colors, styles, accounts, searchQuery, typeFilter, periodFilter, accountFilter, isAccountExpanded, isPeriodExpanded, totalIncome, totalExpense, handleExportCSV, isFiltered]);
+  ), [colors, styles, accounts, searchQuery, typeFilter, periodFilter, accountFilter, isAccountExpanded, isPeriodExpanded, totalIncome, totalExpense, handleExportCSV, isFiltered, resetAllFilters]);
 
   const groupedTransactions = useMemo(() => {
     const groups = {};
     transactions.forEach(tx => {
-      const date = tx.date;
-      if (!groups[date]) groups[date] = [];
-      groups[date].push(tx);
+      // Ambil tanggal saja (YYYY-MM-DD) agar transaksi pada hari yang sama
+      // masuk ke satu grup, tidak terpecah oleh perbedaan jam/detik
+      const dateKey = tx.date ? tx.date.substring(0, 10) : 'unknown';
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(tx);
     });
     return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(date => ({
       date,

@@ -31,10 +31,8 @@ import {
 } from "../db/database";
 import { formatCurrencyInput, parseCurrencyRaw } from "../utils/formatting";
 
-// ─── Pantone iPhone Palette ──────────────────────────────────────────────────
-const PANTONE_ORANGE   = "#FF5800"; // Pantone 1505 C  — brand utama
-const PANTONE_SILVER   = "#BCBEC0"; // Pantone 420 C   — secondary
-const TITANIUM_NATURAL = "#878681"; // Natural Titanium — aksen metalik
+// Warna dompet default menggunakan BCA Blue — sesuai brand utama
+// (konstanta warna terpusat di src/constants/theme.js)
 
 const WALLET_TYPES = [
   { key: "cash",       label: "Tunai",   icon: "wallet",         color: "#00478F" },
@@ -76,7 +74,7 @@ export default function SettingsScreen() {
   const [inputUserName, setInputUserName] = useState("");
   const [walletName, setWalletName] = useState("");
   const [walletType, setWalletType] = useState("bank");
-  const [walletColor, setWalletColor] = useState("#0ea5e9");
+  const [walletColor, setWalletColor] = useState("#00478F"); // Sinkron dengan WALLET_COLORS[0] — Biru BCA
   const [initialBalance, setInitialBalance] = useState("");
   const [excludeFromTotal, setExcludeFromTotal] = useState(false);
   const [editWalletId, setEditWalletId] = useState(null);
@@ -610,7 +608,7 @@ export default function SettingsScreen() {
                   key={acc.id}
                   style={styles.accItem}
                   onPress={() => handleManageWallet(acc)}
-                  onLongPress={() => handleDeleteAccount(acc)}
+                  // onLongPress dihapus: handleManageWallet sudah include opsi Edit & Hapus
                 >
                   <View
                     style={[styles.accDot, { backgroundColor: acc.color }]}

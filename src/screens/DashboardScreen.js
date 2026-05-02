@@ -381,7 +381,7 @@ const makeStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     elevation: 12,
-    shadowColor: colors.brand, // Glow oranye
+    shadowColor: colors.brand, // Glow biru BCA
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4, // Shadow lebih kuat
     shadowRadius: 16,

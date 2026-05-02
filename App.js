@@ -24,7 +24,7 @@ const Tab = createBottomTabNavigator();
 function LoadingFallback() {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1c1c1a' }}>
-      <ActivityIndicator size="large" color="#FF5800" />
+      <ActivityIndicator size="large" color="#00478F" /> {/* Biru BCA — konsisten dengan brand */}
       <Text style={{ marginTop: 14, color: '#878681', fontSize: 14, letterSpacing: 0.5 }}>Memuat database...</Text>
     </View>
   );
