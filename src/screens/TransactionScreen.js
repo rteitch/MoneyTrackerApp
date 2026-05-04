@@ -426,6 +426,7 @@ export default function TransactionScreen({ navigation, route }) {
             value={desc}
             onChangeText={setDesc}
             multiline
+            maxLength={200}
           />
         </View>
 

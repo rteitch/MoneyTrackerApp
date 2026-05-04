@@ -2,7 +2,7 @@ import { useSQLiteContext } from "expo-sqlite";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useColorScheme } from "react-native";
 import { getThemeColors, getTransactionTypeConfig } from "../constants/theme";
-import { getPref, setPref } from "../db/database";
+import { getPref, setPref, processDueRecurring } from "../db/database";
 
 const AppContext = createContext(null);
 
@@ -21,7 +21,7 @@ export const AppProvider = ({ children }) => {
   const colors = getThemeColors(currentTheme);
   const typeConfig = getTransactionTypeConfig(currentTheme);
 
-  // Initialize context data from DB
+  // Initialize context data from DB + process recurring transactions
   useEffect(() => {
     async function loadData() {
       try {
@@ -31,6 +31,13 @@ export const AppProvider = ({ children }) => {
         ]);
         setUserNameState(storedName);
         setThemeModeState(storedTheme);
+
+        // Process due recurring transactions silently
+        try {
+          await processDueRecurring(db);
+        } catch (recurringError) {
+          console.error("Failed to process recurring transactions:", recurringError);
+        }
       } catch (error) {
         console.error("Failed to load global context:", error);
       } finally {

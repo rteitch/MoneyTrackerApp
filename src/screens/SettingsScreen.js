@@ -28,11 +28,12 @@ import {
     getCategories,
     getSubCategories,
     updateAccountBalance,
+    getRecurringTransactions,
+    addRecurringTransaction,
+    deleteRecurringTransaction,
+    toggleRecurringTransaction,
 } from "../db/database";
-import { formatCurrencyInput, parseCurrencyRaw } from "../utils/formatting";
-
-// Warna dompet default menggunakan BCA Blue — sesuai brand utama
-// (konstanta warna terpusat di src/constants/theme.js)
+import { formatCurrencyInput, parseCurrencyRaw, formatRupiah, formatDate } from "../utils/formatting";
 
 const WALLET_TYPES = [
   { key: "cash",       label: "Tunai",   icon: "wallet",         color: "#00478F" },
@@ -43,14 +44,14 @@ const WALLET_TYPES = [
 ];
 
 const WALLET_COLORS = [
-  "#00478F",        // Biru BCA
-  "#0066CC",        // Biru BCA Terang
-  "#FBBF24",        // Emas BCA
-  "#BCBEC0",        // Silver
-  "#878681",        // Natural Titanium
-  "#00c896",        // Hijau mint
-  "#14b8a6",        // Teal
-  "#ff4d6d",        // Merah
+  "#00478F",
+  "#0066CC",
+  "#FBBF24",
+  "#BCBEC0",
+  "#878681",
+  "#00c896",
+  "#14b8a6",
+  "#ff4d6d",
 ];
 
 function Section({ title, subtitle, children, styles }) {
@@ -74,7 +75,7 @@ export default function SettingsScreen() {
   const [inputUserName, setInputUserName] = useState("");
   const [walletName, setWalletName] = useState("");
   const [walletType, setWalletType] = useState("bank");
-  const [walletColor, setWalletColor] = useState("#00478F"); // Sinkron dengan WALLET_COLORS[0] — Biru BCA
+  const [walletColor, setWalletColor] = useState("#00478F");
   const [initialBalance, setInitialBalance] = useState("");
   const [excludeFromTotal, setExcludeFromTotal] = useState(false);
   const [editWalletId, setEditWalletId] = useState(null);
@@ -91,6 +92,18 @@ export default function SettingsScreen() {
   const [activeTab, setActiveTab] = useState("wallet"); // 'wallet' | 'category' | 'profile'
 
   const [isResetModalVisible, setResetModalVisible] = useState(false);
+
+  // Recurring transactions state
+  const [recurringList, setRecurringList] = useState([]);
+  const [showRecurringForm, setShowRecurringForm] = useState(false);
+  const [recAmount, setRecAmount] = useState('');
+  const [recType, setRecType] = useState('expense');
+  const [recAccountId, setRecAccountId] = useState(null);
+  const [recCatId, setRecCatId] = useState(null);
+  const [recDesc, setRecDesc] = useState('');
+  const [recFrequency, setRecFrequency] = useState('monthly');
+  const [recNextDate, setRecNextDate] = useState(new Date().toISOString().split('T')[0]);
+
   const [statusModal, setStatusModal] = useState({
     visible: false,
     title: "",
@@ -131,12 +144,16 @@ export default function SettingsScreen() {
         if (globalUserName) {
           setInputUserName(globalUserName);
         }
-        const cats = await getCategories(db, catType);
+        const [cats, accs, recurring] = await Promise.all([
+          getCategories(db, catType),
+          getAccounts(db),
+          getRecurringTransactions(db),
+        ]);
         if (cancelled.current) return;
         setExistingCats(cats);
-        const accs = await getAccounts(db);
-        if (cancelled.current) return;
         setAccounts(accs);
+        setRecurringList(recurring);
+        if (accs.length > 0 && !recAccountId) setRecAccountId(accs[0].id);
       } catch (e) {
         console.error("Settings loadData error:", e);
       }
@@ -162,10 +179,13 @@ export default function SettingsScreen() {
   }, [loadData]);
 
   const handleSaveUser = async () => {
-    if (!inputUserName.trim())
+    const trimmed = inputUserName.trim();
+    if (!trimmed)
       return showStatus("Error", "Nama tidak boleh kosong.", "error");
+    if (trimmed.length > 30)
+      return showStatus("Error", "Nama maksimal 30 karakter.", "error");
     try {
-      await setUserName(inputUserName);
+      await setUserName(trimmed);
       showStatus("Sukses", "Profil berhasil disimpan.", "success");
     } catch (e) {
       console.error("handleSaveUser error:", e);
@@ -181,6 +201,84 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await setThemeMode(mode);
   };
+
+  // Recurring Transaction Handlers
+  const resetRecurringForm = () => {
+    setShowRecurringForm(false);
+    setRecAmount('');
+    setRecType('expense');
+    setRecCatId(null);
+    setRecDesc('');
+    setRecFrequency('monthly');
+    setRecNextDate(new Date().toISOString().split('T')[0]);
+  };
+
+  const handleAddRecurring = async () => {
+    const amt = parseCurrencyRaw(recAmount);
+    if (amt <= 0) return showStatus('Error', 'Masukkan nominal yang valid.', 'error');
+    if (!recAccountId) return showStatus('Error', 'Pilih dompet.', 'error');
+    if (recType !== 'transfer' && !recCatId) return showStatus('Error', 'Pilih kategori.', 'error');
+    if (!recNextDate) return showStatus('Error', 'Tanggal berikutnya wajib diisi.', 'error');
+
+    try {
+      await addRecurringTransaction(db, {
+        amount: amt,
+        type: recType,
+        account_id: recAccountId,
+        category_id: recCatId,
+        description: recDesc.trim(),
+        frequency: recFrequency,
+        next_date: recNextDate,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showStatus('Berhasil', 'Transaksi berulang ditambahkan!', 'success');
+      resetRecurringForm();
+      loadData();
+    } catch (e) {
+      console.error('handleAddRecurring error:', e);
+      showStatus('Gagal', 'Tidak dapat menyimpan.', 'error');
+    }
+  };
+
+  const handleDeleteRecurring = (item) => {
+    Alert.alert('Hapus', `Hapus transaksi berulang "${item.category_name || item.description}"?`, [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Hapus',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteRecurringTransaction(db, item.id);
+            loadData();
+          } catch (e) {
+            Alert.alert('Gagal', 'Tidak dapat menghapus.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleToggleRecurring = async (item) => {
+    try {
+      await toggleRecurringTransaction(db, item.id, !item.is_active);
+      loadData();
+    } catch (e) {
+      Alert.alert('Gagal', 'Tidak dapat mengubah status.');
+    }
+  };
+
+  const FREQUENCY_OPTIONS = [
+    { key: 'daily', label: 'Harian' },
+    { key: 'weekly', label: 'Mingguan' },
+    { key: 'monthly', label: 'Bulanan' },
+    { key: 'yearly', label: 'Tahunan' },
+  ];
+
+  const REC_TYPE_OPTIONS = [
+    { key: 'expense', label: 'Keluar', color: colors.expense },
+    { key: 'income', label: 'Masuk', color: colors.income },
+    { key: 'transfer', label: 'Transfer', color: colors.brand },
+  ];
 
   const handleFactoryReset = () => {
     setResetModalVisible(true);
@@ -416,6 +514,7 @@ export default function SettingsScreen() {
   const TABS = [
     { key: "wallet", label: "Dompet", icon: "wallet" },
     { key: "category", label: "Kategori", icon: "pricetag" },
+    { key: "recurring", label: "Berulang", icon: "repeat" },
     { key: "appearance", label: "Tampilan", icon: "color-palette" },
     { key: "profile", label: "Profil", icon: "person" },
   ];
@@ -488,6 +587,7 @@ export default function SettingsScreen() {
                 placeholderTextColor={colors.textFaint}
                 value={walletName}
                 onChangeText={setWalletName}
+                maxLength={30}
               />
               <Text style={styles.fieldLabel}>Tipe Dompet</Text>
               <View style={styles.typeGrid}>
@@ -695,6 +795,7 @@ export default function SettingsScreen() {
                 placeholderTextColor={colors.textFaint}
                 value={catName}
                 onChangeText={setCatName}
+                maxLength={40}
               />
               {catType === "expense" && (
                 <View style={styles.switchRow}>
@@ -795,6 +896,7 @@ export default function SettingsScreen() {
                   placeholderTextColor={colors.textFaint}
                   value={subCatName}
                   onChangeText={setSubCatName}
+                  maxLength={40}
                 />
                 <TouchableOpacity
                   style={[styles.btnPrimary, { backgroundColor: colors.brand }]}
@@ -805,6 +907,165 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </Section>
             )}
+          </>
+        )}
+
+        {/* RECURRING TAB */}
+        {activeTab === "recurring" && (
+          <>
+            <Section
+              styles={styles}
+              title="Transaksi Berulang"
+              subtitle="Atur transaksi yang terjadi secara rutin (gaji, langganan, cicilan)."
+            >
+              {!showRecurringForm ? (
+                <TouchableOpacity
+                  style={[styles.btnPrimary, { backgroundColor: colors.brand }]}
+                  onPress={() => setShowRecurringForm(true)}
+                >
+                  <Ionicons name="add-circle" size={18} color="#fff" />
+                  <Text style={styles.btnPrimaryText}>Tambah Transaksi Berulang</Text>
+                </TouchableOpacity>
+              ) : (
+                <View>
+                  <Text style={styles.fieldLabel}>Tipe Transaksi</Text>
+                  <View style={styles.pillRow}>
+                    {REC_TYPE_OPTIONS.map(t => (
+                      <TouchableOpacity
+                        key={t.key}
+                        style={[styles.pill, recType === t.key && { borderColor: t.color, backgroundColor: t.color + '1a' }]}
+                        onPress={() => { setRecType(t.key); setRecCatId(null); }}
+                      >
+                        <Text style={[styles.pillText, recType === t.key && { color: t.color }]}>{t.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.fieldLabel}>Nominal</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="number-pad"
+                    placeholder="Rp 0"
+                    placeholderTextColor={colors.textFaint}
+                    value={recAmount}
+                    onChangeText={(t) => setRecAmount(formatCurrencyInput(t))}
+                  />
+
+                  <Text style={styles.fieldLabel}>Dompet</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                    {accounts.map(acc => (
+                      <TouchableOpacity
+                        key={acc.id}
+                        style={[styles.typeChip, recAccountId === acc.id && { borderColor: acc.color, backgroundColor: acc.color + '1a' }]}
+                        onPress={() => setRecAccountId(acc.id)}
+                      >
+                        <View style={[styles.colorDot, { backgroundColor: acc.color, width: 8, height: 8, borderRadius: 4, marginRight: 6 }]} />
+                        <Text style={[styles.typeChipText, recAccountId === acc.id && { color: acc.color }]}>{acc.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  {recType !== 'transfer' && (
+                    <>
+                      <Text style={styles.fieldLabel}>Kategori</Text>
+                      <View style={styles.typeGrid}>
+                        {existingCats.filter(c => c.type === recType).map(c => (
+                          <TouchableOpacity
+                            key={c.id}
+                            style={[styles.typeChip, recCatId === c.id && { borderColor: colors.brand, backgroundColor: colors.brandBg }]}
+                            onPress={() => setRecCatId(c.id)}
+                          >
+                            <Text style={[styles.typeChipText, recCatId === c.id && { color: colors.brand }]}>{c.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </>
+                  )}
+
+                  <Text style={styles.fieldLabel}>Frekuensi</Text>
+                  <View style={styles.pillRow}>
+                    {FREQUENCY_OPTIONS.map(f => (
+                      <TouchableOpacity
+                        key={f.key}
+                        style={[styles.pill, recFrequency === f.key && { borderColor: colors.brand, backgroundColor: colors.brandBg }]}
+                        onPress={() => setRecFrequency(f.key)}
+                      >
+                        <Text style={[styles.pillText, recFrequency === f.key && { color: colors.brand }]}>{f.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.fieldLabel}>Tanggal Berikutnya</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.textFaint}
+                    value={recNextDate}
+                    onChangeText={setRecNextDate}
+                    maxLength={10}
+                  />
+
+                  <Text style={styles.fieldLabel}>Keterangan (Opsional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="cth: Gaji bulanan"
+                    placeholderTextColor={colors.textFaint}
+                    value={recDesc}
+                    onChangeText={setRecDesc}
+                    maxLength={100}
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                    <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.bgElevated, flex: 1 }]} onPress={resetRecurringForm}>
+                      <Text style={[styles.btnPrimaryText, { color: colors.textPrimary }]}>Batal</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.brand, flex: 2 }]} onPress={handleAddRecurring}>
+                      <Ionicons name="add-circle" size={18} color="#fff" />
+                      <Text style={styles.btnPrimaryText}>Simpan</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </Section>
+
+            <Section
+              styles={styles}
+              title="Daftar Transaksi Berulang"
+              subtitle="Ketuk untuk aktif/nonaktif. Tahan untuk hapus."
+            >
+              {recurringList.length === 0 ? (
+                <Text style={styles.empty}>Belum ada transaksi berulang.</Text>
+              ) : (
+                recurringList.map(item => {
+                  const freqLabel = FREQUENCY_OPTIONS.find(f => f.key === item.frequency)?.label || item.frequency;
+                  const typeColor = item.type === 'income' ? colors.income : item.type === 'expense' ? colors.expense : colors.brand;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.accItem, { opacity: item.is_active ? 1 : 0.5 }]}
+                      onPress={() => handleToggleRecurring(item)}
+                      onLongPress={() => handleDeleteRecurring(item)}
+                    >
+                      <View style={[styles.accDot, { backgroundColor: typeColor }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.accName}>
+                          {item.category_name || item.description || 'Transaksi Berulang'}
+                        </Text>
+                        <Text style={styles.accType}>
+                          {freqLabel} · {formatRupiah(item.amount)} · Berikutnya: {formatDate(item.next_date)}
+                        </Text>
+                      </View>
+                      <Switch
+                        value={!!item.is_active}
+                        onValueChange={() => handleToggleRecurring(item)}
+                        trackColor={{ false: colors.bgElevated, true: colors.brand }}
+                        thumbColor={item.is_active ? '#fff' : colors.textMuted}
+                      />
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </Section>
           </>
         )}
 
@@ -889,6 +1150,7 @@ export default function SettingsScreen() {
                 placeholderTextColor={colors.textFaint}
                 value={inputUserName}
                 onChangeText={setInputUserName}
+                maxLength={30}
               />
               <TouchableOpacity
                 style={[styles.btnPrimary, { backgroundColor: colors.brand }]}

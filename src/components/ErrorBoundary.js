@@ -58,10 +58,13 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+const BRAND_BLUE = "#00478F";
+const ERROR_RED = "#EF4444";
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212", // Fallback dark mode
+    backgroundColor: "#0F172A",
   },
   content: {
     flex: 1,
@@ -73,7 +76,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "#ff4d6d20",
+    backgroundColor: ERROR_RED + "20",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
@@ -81,34 +84,34 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#ffffff",
+    color: "#F8F9FA",
     marginBottom: 12,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 14,
-    color: "#a0a0a0",
+    color: "#94A3B8",
     textAlign: "center",
     marginBottom: 32,
     lineHeight: 22,
   },
   errorBox: {
-    backgroundColor: "#ffffff05",
+    backgroundColor: "#1E293B",
     padding: 16,
     borderRadius: 12,
     width: "100%",
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: "#ffffff10",
+    borderColor: "#334155",
   },
   errorText: {
-    color: "#ff4d6d",
+    color: ERROR_RED,
     fontFamily: "monospace",
     fontSize: 12,
   },
   button: {
     flexDirection: "row",
-    backgroundColor: "#00478F",
+    backgroundColor: BRAND_BLUE,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,

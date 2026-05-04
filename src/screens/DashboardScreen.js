@@ -16,6 +16,7 @@ import {
   ScrollView
 } from 'react-native';
 import BottomSheetModal from '../components/BottomSheetModal';
+import BudgetProgressBar from '../components/BudgetProgressBar';
 import TransactionCard from '../components/TransactionCard';
 import CountUp from '../components/CountUp';
 import { useAppContext } from '../context/AppContext';
@@ -25,7 +26,9 @@ import {
   getDateFilterBoundary,
   getRecentTransactions,
   getStats,
-  getTotalHarta
+  getTotalHarta,
+  getBudgetWithSpending,
+  getDebtSummary,
 } from '../db/database';
 import { formatRupiah, getGreeting } from '../utils/formatting';
 
@@ -43,6 +46,8 @@ export default function DashboardScreen({ navigation }) {
   const [recentTX, setRecentTX] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [totalHarta, setTotalHarta] = useState(0);
+  const [budgets, setBudgets] = useState([]);
+  const [debtSummary, setDebtSummary] = useState({ totalReceivable: 0, totalPayable: 0, net: 0 });
   const [filter, setFilter] = useState('all');
   const { userName, colors, currentTheme } = useAppContext();
   const styles = makeStyles(colors);
@@ -57,16 +62,21 @@ export default function DashboardScreen({ navigation }) {
   const loadData = useCallback(async () => {
     try {
       const boundary = getDateFilterBoundary(filter);
-      const [s, tx, accs, total] = await Promise.all([
+      const now = new Date();
+      const [s, tx, accs, total, b, ds] = await Promise.all([
         getStats(db, boundary),
         getRecentTransactions(db, 10, boundary),
         getAccounts(db),
-        getTotalHarta(db)
+        getTotalHarta(db),
+        getBudgetWithSpending(db, now.getMonth() + 1, now.getFullYear()),
+        getDebtSummary(db),
       ]);
       setStats(s);
       setRecentTX(tx);
       setAccounts(accs);
       setTotalHarta(total);
+      setBudgets(b);
+      setDebtSummary(ds);
     } catch (e) {
       console.error('loadData error:', e);
       Alert.alert('Error', 'Gagal memuat data dashboard.');
@@ -114,8 +124,8 @@ export default function DashboardScreen({ navigation }) {
 
   const renderHeader = useMemo(() => {
     const isLight = currentTheme === 'light';
-    const heroGradient = isLight 
-      ? [colors.brand, "#0066CC"] 
+    const heroGradient = isLight
+      ? ["#003366", colors.brand]
       : [colors.bgCard, colors.bgDeep];
 
     return (
@@ -134,12 +144,13 @@ export default function DashboardScreen({ navigation }) {
           end={{ x: 1, y: 1 }}
           style={[
             styles.heroCard,
-            isLight && { 
-              borderWidth: 0, 
-              borderTopWidth: 0, // Inilah penyebab glitch-nya
-              shadowColor: '#000', // Gunakan shadow hitam halus untuk mode terang agar lebih bersih
-              shadowOpacity: 0.12,
-              elevation: 0 
+            isLight && {
+              borderWidth: 0,
+              borderTopWidth: 0,
+              shadowColor: '#000',
+              shadowOpacity: 0.15,
+              shadowRadius: 12,
+              elevation: 6,
             }
           ]}
         >
@@ -240,6 +251,57 @@ export default function DashboardScreen({ navigation }) {
             </TouchableOpacity>
           }
         />
+
+        {/* Budget Summary */}
+        {budgets.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionLabel, { marginLeft: 0, marginBottom: 0 }]}>Anggaran Bulan Ini</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Anggaran')}>
+                <Text style={styles.seeAll}>Kelola</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.budgetCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              {budgets.slice(0, 3).map((b, i) => (
+                <BudgetProgressBar
+                  key={b.id}
+                  category_name={b.category_name}
+                  monthly_limit={b.monthly_limit}
+                  spent={b.spent}
+                  compact
+                />
+              ))}
+              {budgets.length > 3 && (
+                <TouchableOpacity onPress={() => navigation.navigate('Anggaran')}>
+                  <Text style={[styles.seeMore, { color: colors.secondary }]}>+{budgets.length - 3} anggaran lainnya</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Debt Summary */}
+        {(debtSummary.totalReceivable > 0 || debtSummary.totalPayable > 0) && (
+          <TouchableOpacity
+            style={[styles.debtSummaryCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+            onPress={() => navigation.navigate('Hutang')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.debtSummaryRow}>
+              <View style={styles.debtSummaryItem}>
+                <Ionicons name="arrow-down-circle" size={16} color={colors.income} />
+                <Text style={[styles.debtSummaryLabel, { color: colors.textMuted }]}>Piutang</Text>
+                <Text style={[styles.debtSummaryValue, { color: colors.income }]}>{formatRupiah(debtSummary.totalReceivable)}</Text>
+              </View>
+              <View style={[styles.debtSummaryDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.debtSummaryItem}>
+                <Ionicons name="arrow-up-circle" size={16} color={colors.expense} />
+                <Text style={[styles.debtSummaryLabel, { color: colors.textMuted }]}>Hutang</Text>
+                <Text style={[styles.debtSummaryValue, { color: colors.expense }]}>{formatRupiah(debtSummary.totalPayable)}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Recent Activity Header */}
         <View style={styles.activityHeader}>
@@ -501,4 +563,24 @@ const makeStyles = (colors) => StyleSheet.create({
   modalTxPreview: { padding: 16, borderRadius: 16, alignItems: 'center', backgroundColor: colors.bgPrimary },
   modalTxCat: { fontSize: 16, fontWeight: '700', marginBottom: 4, color: colors.textPrimary },
   modalTxAmt: { fontSize: 20, fontWeight: '800' },
+
+  // Budget section
+  sectionContainer: { paddingHorizontal: 20, marginBottom: 24 },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
+  },
+  budgetCard: {
+    borderRadius: 16, padding: 16, borderWidth: 1,
+  },
+  seeMore: { fontSize: 11, fontWeight: '700', marginTop: 8, textAlign: 'center' },
+
+  // Debt summary
+  debtSummaryCard: {
+    marginHorizontal: 16, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1,
+  },
+  debtSummaryRow: { flexDirection: 'row', alignItems: 'center' },
+  debtSummaryItem: { flex: 1, alignItems: 'center', gap: 4 },
+  debtSummaryLabel: { fontSize: 10, fontWeight: '700' },
+  debtSummaryValue: { fontSize: 14, fontWeight: '800' },
+  debtSummaryDivider: { width: 1, height: 30, marginHorizontal: 8 },
 });

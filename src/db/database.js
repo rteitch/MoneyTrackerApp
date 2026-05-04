@@ -1,6 +1,6 @@
 
 // Current DB schema version — increment when making schema changes
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export async function initDatabase(db) {
   try {
@@ -59,6 +59,55 @@ export async function initDatabase(db) {
       );
 
       CREATE INDEX IF NOT EXISTS idx_transactions_date_deleted ON transactions(date, is_deleted);
+
+      CREATE TABLE IF NOT EXISTS budgets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category_id INTEGER NOT NULL,
+          monthly_limit REAL NOT NULL,
+          is_active INTEGER DEFAULT 1,
+          FOREIGN KEY (category_id) REFERENCES categories (id)
+      );
+
+      CREATE TABLE IF NOT EXISTS recurring_transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          amount REAL NOT NULL,
+          fee REAL DEFAULT 0,
+          type TEXT NOT NULL,
+          account_id INTEGER NOT NULL,
+          to_account_id INTEGER,
+          category_id INTEGER,
+          subcategory_id INTEGER,
+          description TEXT,
+          frequency TEXT NOT NULL,
+          next_date TEXT NOT NULL,
+          is_active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (account_id) REFERENCES accounts (id),
+          FOREIGN KEY (to_account_id) REFERENCES accounts (id),
+          FOREIGN KEY (category_id) REFERENCES categories (id),
+          FOREIGN KEY (subcategory_id) REFERENCES subcategories (id)
+      );
+
+      CREATE TABLE IF NOT EXISTS debts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL,
+          person_name TEXT NOT NULL,
+          original_amount REAL NOT NULL,
+          remaining_amount REAL NOT NULL,
+          description TEXT,
+          due_date TEXT,
+          status TEXT DEFAULT 'pending',
+          created_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS debt_payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          debt_id INTEGER NOT NULL,
+          amount REAL NOT NULL,
+          date TEXT NOT NULL,
+          description TEXT,
+          FOREIGN KEY (debt_id) REFERENCES debts (id)
+      );
     `);
 
     // Run versioned migrations (safe for upgrades)
@@ -91,8 +140,58 @@ async function runMigrations(db) {
     try { await db.execAsync('CREATE INDEX IF NOT EXISTS idx_transactions_date_deleted ON transactions(date, is_deleted)'); } catch(_e) {}
   }
 
-  // Future migrations go here:
-  // if (currentVersion < 2) { ... }
+  // Migration v2 → v3: Budgeting, Recurring, Debt Tracking
+  if (currentVersion < 3) {
+    try {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS budgets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category_id INTEGER NOT NULL,
+          monthly_limit REAL NOT NULL,
+          is_active INTEGER DEFAULT 1,
+          FOREIGN KEY (category_id) REFERENCES categories (id)
+        );
+        CREATE TABLE IF NOT EXISTS recurring_transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          amount REAL NOT NULL,
+          fee REAL DEFAULT 0,
+          type TEXT NOT NULL,
+          account_id INTEGER NOT NULL,
+          to_account_id INTEGER,
+          category_id INTEGER,
+          subcategory_id INTEGER,
+          description TEXT,
+          frequency TEXT NOT NULL,
+          next_date TEXT NOT NULL,
+          is_active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (account_id) REFERENCES accounts (id),
+          FOREIGN KEY (to_account_id) REFERENCES accounts (id),
+          FOREIGN KEY (category_id) REFERENCES categories (id),
+          FOREIGN KEY (subcategory_id) REFERENCES subcategories (id)
+        );
+        CREATE TABLE IF NOT EXISTS debts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL,
+          person_name TEXT NOT NULL,
+          original_amount REAL NOT NULL,
+          remaining_amount REAL NOT NULL,
+          description TEXT,
+          due_date TEXT,
+          status TEXT DEFAULT 'pending',
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS debt_payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          debt_id INTEGER NOT NULL,
+          amount REAL NOT NULL,
+          date TEXT NOT NULL,
+          description TEXT,
+          FOREIGN KEY (debt_id) REFERENCES debts (id)
+        );
+      `);
+    } catch(_e) {}
+  }
 
   // Save current version
   if (currentVersion < DB_VERSION) {
@@ -557,22 +656,219 @@ export function generateSummary(metrics, topCategories) {
   return lines.join(' ');
 }
 
+// ─── BUDGET FUNCTIONS ────────────────────────────────────────────────────────
+
+export async function getBudgets(db) {
+  return await db.getAllAsync(`
+    SELECT b.*, c.name as category_name
+    FROM budgets b
+    JOIN categories c ON b.category_id = c.id
+    WHERE b.is_active = 1
+    ORDER BY c.name
+  `);
+}
+
+export async function getBudgetWithSpending(db, month, year) {
+  const startDate = new Date(year, month - 1, 1).toISOString();
+  const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+
+  return await db.getAllAsync(`
+    SELECT b.id, b.category_id, b.monthly_limit, c.name as category_name,
+      COALESCE(
+        (SELECT SUM(t.amount) FROM transactions t
+         WHERE t.category_id = b.category_id AND t.type = 'expense'
+         AND t.date >= ? AND t.date <= ? AND t.is_deleted = 0), 0
+      ) as spent
+    FROM budgets b
+    JOIN categories c ON b.category_id = c.id
+    WHERE b.is_active = 1
+    ORDER BY (spent * 1.0 / b.monthly_limit) DESC
+  `, [startDate, endDate]);
+}
+
+export async function setBudget(db, category_id, monthly_limit) {
+  return await db.runAsync(
+    'INSERT OR REPLACE INTO budgets (category_id, monthly_limit, is_active) VALUES (?, ?, 1)',
+    [category_id, monthly_limit]
+  );
+}
+
+export async function deleteBudget(db, id) {
+  return await db.runAsync('DELETE FROM budgets WHERE id = ?', [id]);
+}
+
+// ─── RECURRING TRANSACTION FUNCTIONS ─────────────────────────────────────────
+
+export async function getRecurringTransactions(db) {
+  return await db.getAllAsync(`
+    SELECT r.*, c.name as category_name, a1.name as account_name, a2.name as to_account_name
+    FROM recurring_transactions r
+    LEFT JOIN categories c ON r.category_id = c.id
+    LEFT JOIN accounts a1 ON r.account_id = a1.id
+    LEFT JOIN accounts a2 ON r.to_account_id = a2.id
+    ORDER BY r.next_date ASC
+  `);
+}
+
+export async function addRecurringTransaction(db, params) {
+  return await db.runAsync(
+    `INSERT INTO recurring_transactions (amount, fee, type, account_id, to_account_id, category_id, subcategory_id, description, frequency, next_date, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    [params.amount, params.fee || 0, params.type, params.account_id, params.to_account_id || null, params.category_id || null, params.subcategory_id || null, params.description || '', params.frequency, params.next_date]
+  );
+}
+
+export async function updateRecurringTransaction(db, id, params) {
+  return await db.runAsync(
+    `UPDATE recurring_transactions SET amount = ?, fee = ?, type = ?, account_id = ?, to_account_id = ?, category_id = ?, subcategory_id = ?, description = ?, frequency = ?, next_date = ?, is_active = ? WHERE id = ?`,
+    [params.amount, params.fee || 0, params.type, params.account_id, params.to_account_id || null, params.category_id || null, params.subcategory_id || null, params.description || '', params.frequency, params.next_date, params.is_active ? 1 : 0, id]
+  );
+}
+
+export async function deleteRecurringTransaction(db, id) {
+  return await db.runAsync('DELETE FROM recurring_transactions WHERE id = ?', [id]);
+}
+
+export async function toggleRecurringTransaction(db, id, isActive) {
+  return await db.runAsync('UPDATE recurring_transactions SET is_active = ? WHERE id = ?', [isActive ? 1 : 0, id]);
+}
+
+export function calculateNextDate(frequency, currentDate) {
+  const d = new Date(currentDate);
+  switch (frequency) {
+    case 'daily':
+      d.setDate(d.getDate() + 1);
+      break;
+    case 'weekly':
+      d.setDate(d.getDate() + 7);
+      break;
+    case 'monthly':
+      d.setMonth(d.getMonth() + 1);
+      break;
+    case 'yearly':
+      d.setFullYear(d.getFullYear() + 1);
+      break;
+    default:
+      d.setMonth(d.getMonth() + 1);
+  }
+  return d.toISOString().split('T')[0];
+}
+
+export async function processDueRecurring(db) {
+  const today = new Date().toISOString().split('T')[0];
+  const dueItems = await db.getAllAsync(
+    "SELECT * FROM recurring_transactions WHERE is_active = 1 AND next_date <= ?",
+    [today]
+  );
+
+  const created = [];
+  for (const item of dueItems) {
+    try {
+      await db.execAsync('BEGIN TRANSACTION');
+      const result = await db.runAsync(
+        'INSERT INTO transactions (amount, fee, type, account_id, to_account_id, category_id, subcategory_id, description, date, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+        [item.amount, item.fee, item.type, item.account_id, item.to_account_id, item.category_id, item.subcategory_id, item.description || '', new Date().toISOString()]
+      );
+      await updateAccountBalance(db, item.account_id);
+      if (item.to_account_id) await updateAccountBalance(db, item.to_account_id);
+      const nextDate = calculateNextDate(item.frequency, item.next_date);
+      await db.runAsync('UPDATE recurring_transactions SET next_date = ? WHERE id = ?', [nextDate, item.id]);
+      await db.execAsync('COMMIT');
+      created.push({ ...item, transactionId: result.lastInsertRowId });
+    } catch (e) {
+      await db.execAsync('ROLLBACK');
+      console.error('processDueRecurring error for item', item.id, e);
+    }
+  }
+  return created;
+}
+
+// ─── DEBT TRACKING FUNCTIONS ─────────────────────────────────────────────────
+
+export async function getDebts(db, type = null) {
+  if (type) {
+    return await db.getAllAsync('SELECT * FROM debts WHERE type = ? ORDER BY status ASC, due_date ASC', [type]);
+  }
+  return await db.getAllAsync('SELECT * FROM debts ORDER BY status ASC, due_date ASC');
+}
+
+export async function getDebtSummary(db) {
+  const receivable = await db.getFirstAsync("SELECT COALESCE(SUM(remaining_amount), 0) as total FROM debts WHERE type = 'receivable' AND status != 'settled'");
+  const payable = await db.getFirstAsync("SELECT COALESCE(SUM(remaining_amount), 0) as total FROM debts WHERE type = 'payable' AND status != 'settled'");
+  return {
+    totalReceivable: receivable?.total || 0,
+    totalPayable: payable?.total || 0,
+    net: (receivable?.total || 0) - (payable?.total || 0),
+  };
+}
+
+export async function addDebt(db, params) {
+  return await db.runAsync(
+    "INSERT INTO debts (type, person_name, original_amount, remaining_amount, description, due_date, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')",
+    [params.type, params.person_name, params.amount, params.amount, params.description || '', params.due_date || null]
+  );
+}
+
+export async function addDebtPayment(db, debtId, amount, date, description = '') {
+  try {
+    await db.execAsync('BEGIN TRANSACTION');
+    await db.runAsync(
+      'INSERT INTO debt_payments (debt_id, amount, date, description) VALUES (?, ?, ?, ?)',
+      [debtId, amount, date, description]
+    );
+    const debt = await db.getFirstAsync('SELECT * FROM debts WHERE id = ?', [debtId]);
+    if (!debt) throw new Error('Debt not found');
+    const newRemaining = Math.max(0, debt.remaining_amount - amount);
+    const newStatus = newRemaining === 0 ? 'settled' : 'partial';
+    await db.runAsync('UPDATE debts SET remaining_amount = ?, status = ? WHERE id = ?', [newRemaining, newStatus, debtId]);
+    await db.execAsync('COMMIT');
+    return { success: true, newRemaining, newStatus };
+  } catch (e) {
+    await db.execAsync('ROLLBACK');
+    throw e;
+  }
+}
+
+export async function settleDebt(db, debtId) {
+  const debt = await db.getFirstAsync('SELECT * FROM debts WHERE id = ?', [debtId]);
+  if (!debt) throw new Error('Debt not found');
+  if (debt.remaining_amount > 0) {
+    await addDebtPayment(db, debtId, debt.remaining_amount, new Date().toISOString(), 'Pelunasan');
+  }
+  return await db.runAsync("UPDATE debts SET status = 'settled', remaining_amount = 0 WHERE id = ?", [debtId]);
+}
+
+export async function deleteDebt(db, debtId) {
+  try {
+    await db.execAsync('BEGIN TRANSACTION');
+    await db.runAsync('DELETE FROM debt_payments WHERE debt_id = ?', [debtId]);
+    await db.runAsync('DELETE FROM debts WHERE id = ?', [debtId]);
+    await db.execAsync('COMMIT');
+  } catch (e) {
+    await db.execAsync('ROLLBACK');
+    throw e;
+  }
+}
+
+export async function getDebtPayments(db, debtId) {
+  return await db.getAllAsync('SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY date DESC', [debtId]);
+}
+
 export async function factoryReset(db) {
   try {
     await db.runAsync('BEGIN EXCLUSIVE TRANSACTION;');
-    
-    // Hanya hapus transaksi
+
     await db.execAsync(`
       DELETE FROM transactions;
       DELETE FROM sqlite_sequence WHERE name = 'transactions';
+      DELETE FROM debt_payments;
+      DELETE FROM sqlite_sequence WHERE name = 'debt_payments';
     `);
 
-    // Kembalikan saldo semua dompet ke saldo awal (initial_balance)
     await db.execAsync(`
       UPDATE accounts SET current_balance = initial_balance;
     `);
 
-    // Kembalikan username ke default
     await db.runAsync(
       "INSERT OR REPLACE INTO system_prefs (id, value) VALUES ('username', 'Pengguna')"
     );

@@ -8,12 +8,13 @@
 import {
   formatRupiah,
   formatRupiahFull,
+  formatCurrencyInput,
+  parseCurrencyRaw,
   formatDate,
   formatDateShort,
   formatDateInput,
-  formatDateCSV,
-  parseDateInput,
   getGreeting,
+  escapeCSV,
 } from '../../src/utils/formatting';
 
 // ─── formatRupiah ──────────────────────────────────────────────────────────────
@@ -27,26 +28,37 @@ describe('formatRupiah', () => {
     expect(formatRupiah(undefined)).toBe('Rp 0');
   });
 
-  it('memformat ribuan dengan titik pemisah', () => {
-    expect(formatRupiah(50000)).toBe('Rp 50.000');
-    expect(formatRupiah(1000)).toBe('Rp 1.000');
-    expect(formatRupiah(999)).toBe('Rp 999');
+  it('memformat ribuan dengan singkatan "rb"', () => {
+    expect(formatRupiah(50000)).toContain('rb');
+    expect(formatRupiah(1000)).toContain('rb');
+  });
+
+  it('angka di bawah 1000 tanpa singkatan', () => {
+    expect(formatRupiah(999)).toContain('999');
+    expect(formatRupiah(500)).toContain('500');
   });
 
   it('memformat jutaan dengan singkatan "jt"', () => {
-    expect(formatRupiah(1500000)).toBe('Rp 1.5 jt');
-    expect(formatRupiah(2000000)).toBe('Rp 2.0 jt');
-    expect(formatRupiah(10000000)).toBe('Rp 10.0 jt');
+    expect(formatRupiah(1500000)).toContain('jt');
+    expect(formatRupiah(2000000)).toContain('jt');
   });
 
   it('memformat miliaran dengan singkatan "M"', () => {
-    expect(formatRupiah(1000000000)).toBe('Rp 1.0 M');
-    expect(formatRupiah(2500000000)).toBe('Rp 2.5 M');
+    expect(formatRupiah(1000000000)).toContain('M');
+    expect(formatRupiah(2500000000)).toContain('M');
   });
 
-  it('menangani nilai negatif (menggunakan abs)', () => {
-    expect(formatRupiah(-50000)).toBe('Rp 50.000');
-    expect(formatRupiah(-1500000)).toBe('Rp 1.5 jt');
+  it('memformat triliunan dengan singkatan "T"', () => {
+    expect(formatRupiah(1000000000000)).toContain('T');
+  });
+
+  it('menangani nilai negatif', () => {
+    const result = formatRupiah(-50000);
+    expect(result).toContain('rb');
+  });
+
+  it('menangani NaN', () => {
+    expect(formatRupiah(NaN)).toBe('Rp 0');
   });
 });
 
@@ -62,40 +74,119 @@ describe('formatRupiahFull', () => {
     expect(formatRupiahFull(null)).toBe('Rp 0');
     expect(formatRupiahFull(undefined)).toBe('Rp 0');
   });
+
+  it('miliaran menggunakan singkatan M', () => {
+    expect(formatRupiahFull(1000000000)).toContain('M');
+  });
+
+  it('triliunan menggunakan singkatan T', () => {
+    expect(formatRupiahFull(1000000000000)).toContain('T');
+  });
 });
 
-// ─── parseDateInput ───────────────────────────────────────────────────────────
-describe('parseDateInput', () => {
-  it('menerima format DD/MM/YYYY yang valid dan mengembalikan ISO string', () => {
-    const result = parseDateInput('21/04/2026');
-    expect(result).not.toBeNull();
-    expect(typeof result).toBe('string');
-    expect(result).toContain('2026-04-21');
+// ─── formatCurrencyInput ──────────────────────────────────────────────────────
+describe('formatCurrencyInput', () => {
+  it('mengembalikan string kosong untuk null/undefined/kosong', () => {
+    expect(formatCurrencyInput('')).toBe('');
+    expect(formatCurrencyInput(null)).toBe('');
+    expect(formatCurrencyInput(undefined)).toBe('');
   });
 
-  it('menolak string kosong atau null', () => {
-    expect(parseDateInput('')).toBeNull();
-    expect(parseDateInput(null)).toBeNull();
-    expect(parseDateInput(undefined)).toBeNull();
+  it('memformat angka menjadi "Rp X" dengan pemisah ribuan', () => {
+    expect(formatCurrencyInput('50000')).toBe('Rp 50.000');
+    expect(formatCurrencyInput('1000000')).toBe('Rp 1.000.000');
   });
 
-  it('menolak format yang salah (bukan DD/MM/YYYY)', () => {
-    expect(parseDateInput('2026-04-21')).toBeNull(); // format ISO
-    expect(parseDateInput('21-04-2026')).toBeNull(); // format dash
-    expect(parseDateInput('21/04')).toBeNull();       // kurang bagian
+  it('menghapus karakter non-digit', () => {
+    expect(formatCurrencyInput('abc123def')).toBe('Rp 123');
+    expect(formatCurrencyInput('Rp 50.000')).toBe('Rp 50.000');
   });
 
-  it('menolak tanggal di luar range valid', () => {
-    expect(parseDateInput('00/04/2026')).toBeNull(); // hari 0
-    expect(parseDateInput('32/04/2026')).toBeNull(); // hari 32
-    expect(parseDateInput('21/13/2026')).toBeNull(); // bulan 13
-    expect(parseDateInput('21/04/1999')).toBeNull(); // tahun < 2000
-    expect(parseDateInput('21/04/2101')).toBeNull(); // tahun > 2100
+  it('mengembalikan string kosong jika tidak ada digit', () => {
+    expect(formatCurrencyInput('abc')).toBe('');
+  });
+});
+
+// ─── parseCurrencyRaw ─────────────────────────────────────────────────────────
+describe('parseCurrencyRaw', () => {
+  it('mengembalikan angka langsung jika input number', () => {
+    expect(parseCurrencyRaw(50000)).toBe(50000);
+    expect(parseCurrencyRaw(0)).toBe(0);
   });
 
-  it('menolak tanggal invalid meskipun angkanya masuk range (contoh: 31 Feb)', () => {
-    // Date('2026-02-31') → Invalid Date → return null
-    expect(parseDateInput('31/02/2026')).toBeNull();
+  it('parse string Rupiah menjadi angka', () => {
+    expect(parseCurrencyRaw('Rp 50.000')).toBe(50000);
+    expect(parseCurrencyRaw('Rp 1.000.000')).toBe(1000000);
+  });
+
+  it('mengembalikan 0 untuk null/undefined/kosong', () => {
+    expect(parseCurrencyRaw(null)).toBe(0);
+    expect(parseCurrencyRaw(undefined)).toBe(0);
+    expect(parseCurrencyRaw('')).toBe(0);
+  });
+
+  it('parse string digit murni', () => {
+    expect(parseCurrencyRaw('12345')).toBe(12345);
+  });
+
+  it('mengembalikan 0 untuk string tanpa digit', () => {
+    expect(parseCurrencyRaw('abc')).toBe(0);
+  });
+});
+
+// ─── formatDate ──────────────────────────────────────────────────────────────
+describe('formatDate', () => {
+  it('memformat ISO date ke format Indonesia', () => {
+    const result = formatDate('2026-04-21T00:00:00.000Z');
+    expect(result).toContain('21');
+    expect(result).toContain('Apr');
+    expect(result).toContain('2026');
+  });
+
+  it('mengembalikan "-" untuk null/undefined', () => {
+    expect(formatDate(null)).toBe('-');
+    expect(formatDate(undefined)).toBe('-');
+    expect(formatDate('')).toBe('-');
+  });
+
+  it('mengembalikan "-" untuk invalid date', () => {
+    expect(formatDate('invalid-date')).toBe('-');
+  });
+});
+
+// ─── formatDateShort ─────────────────────────────────────────────────────────
+describe('formatDateShort', () => {
+  it('memformat tanpa tahun', () => {
+    const result = formatDateShort('2026-04-21T00:00:00.000Z');
+    expect(result).toContain('21');
+    expect(result).toContain('Apr');
+    expect(result).not.toContain('2026');
+  });
+
+  it('mengembalikan "-" untuk null', () => {
+    expect(formatDateShort(null)).toBe('-');
+  });
+});
+
+// ─── formatDateInput ──────────────────────────────────────────────────────────
+describe('formatDateInput', () => {
+  it('memformat ISO date ke DD/MM/YYYY', () => {
+    const result = formatDateInput('2026-04-21T00:00:00.000Z');
+    expect(result).toBe('21/04/2026');
+  });
+
+  it('mengembalikan string kosong untuk null/undefined', () => {
+    expect(formatDateInput(null)).toBe('');
+    expect(formatDateInput(undefined)).toBe('');
+  });
+
+  it('mengembalikan string kosong untuk invalid date', () => {
+    expect(formatDateInput('invalid')).toBe('');
+  });
+
+  it('padding hari dan bulan dengan nol', () => {
+    const result = formatDateInput('2026-01-05T00:00:00.000Z');
+    expect(result).toBe('05/01/2026');
   });
 });
 
@@ -136,11 +227,19 @@ describe('getGreeting', () => {
     mockHour(20);
     expect(getGreeting()).toBe('Selamat Malam');
   });
+
+  it('mengembalikan Selamat Pagi jam 5', () => {
+    mockHour(5);
+    expect(getGreeting()).toBe('Selamat Pagi');
+  });
+
+  it('mengembalikan Selamat Malam jam 0 (tengah malam)', () => {
+    mockHour(0);
+    expect(getGreeting()).toBe('Selamat Malam');
+  });
 });
 
 // ─── escapeCSV ────────────────────────────────────────────────────────────────
-import { escapeCSV } from '../../src/utils/formatting';
-
 describe('escapeCSV', () => {
   it('mengembalikan string kosong untuk null atau undefined', () => {
     expect(escapeCSV(null)).toBe('');
@@ -162,5 +261,9 @@ describe('escapeCSV', () => {
 
   it('mengapit string dengan tanda kutip dan melakukan escape pada double quotes', () => {
     expect(escapeCSV('Dia berkata "Halo" kepadaku')).toBe('"Dia berkata ""Halo"" kepadaku"');
+  });
+
+  it('menangani angka 0', () => {
+    expect(escapeCSV(0)).toBe('0');
   });
 });

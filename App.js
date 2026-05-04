@@ -13,7 +13,9 @@ import { initDatabase } from './src/db/database';
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
+import BudgetScreen from './src/screens/BudgetScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import DebtScreen from './src/screens/DebtScreen';
 import MutasiScreen from './src/screens/MutasiScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TransactionScreen from './src/screens/TransactionScreen';
@@ -23,8 +25,8 @@ const Tab = createBottomTabNavigator();
 // Custom Loading Fallback
 function LoadingFallback() {
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1c1c1a' }}>
-      <ActivityIndicator size="large" color="#00478F" /> {/* Biru BCA — konsisten dengan brand */}
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
+      <ActivityIndicator size="large" color="#00478F" />
       <Text style={{ marginTop: 14, color: '#878681', fontSize: 14, letterSpacing: 0.5 }}>Memuat database...</Text>
     </View>
   );
@@ -46,6 +48,7 @@ function AppContent() {
             else if (route.name === 'Mutasi') iconName = focused ? 'list' : 'list-outline';
             else if (route.name === 'Tambah Transaksi') iconName = focused ? 'add-circle' : 'add-circle-outline';
             else if (route.name === 'Statistik') iconName = focused ? 'bar-chart' : 'bar-chart-outline';
+            else if (route.name === 'Hutang') iconName = focused ? 'swap-vertical' : 'swap-vertical-outline';
             else if (route.name === 'Pengaturan') iconName = focused ? 'settings' : 'settings-outline';
             return <Ionicons name={iconName} size={size} color={color} />;
           },
@@ -107,10 +110,26 @@ function AppContent() {
             tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
           }}
         />
-        <Tab.Screen 
-          name="Pengaturan" 
-          component={SettingsScreen} 
-          options={{ title: 'Pengaturan' }} 
+        <Tab.Screen
+          name="Hutang"
+          component={DebtScreen}
+          options={{ title: 'Hutang' }}
+          listeners={{
+            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+          }}
+        />
+        <Tab.Screen
+          name="Anggaran"
+          component={BudgetScreen}
+          options={{
+            title: 'Anggaran',
+            tabBarButton: () => null, // Hide from tab bar, accessible via navigation
+          }}
+        />
+        <Tab.Screen
+          name="Pengaturan"
+          component={SettingsScreen}
+          options={{ title: 'Pengaturan' }}
           listeners={{
             tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
           }}

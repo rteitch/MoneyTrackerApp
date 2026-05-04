@@ -4,21 +4,21 @@
  * Single source of truth untuk semua design tokens.
  * Mendukung Dark Mode dan Light Mode.
  *
- * Palette Warna Utama Aplikasi (iPhone Pantone):
- * - Brand    : #00478F (Pantone 1505 C)  — biru utama di SEMUA mode
- * - Secondary: #003399 (BCA Blue)       — biru untuk navigasi dan keamanan
- * - Titanium : #878681 (Natural Titanium)— metalik netral sebagai aksen
+ * Palette:
+ * - Brand    : #00478F — biru utama di SEMUA mode
+ * - Secondary: #0066CC — biru terang untuk aksen
+ * - Titanium : #878681 — netral sebagai muted text
  *
  * Theme modes:
- * - 'dark'   : Titanium grey dark — brand biru #00478F di atas abu titanium
- * - 'light'  : Clean light — brand biru #00478F di atas background terang
+ * - 'dark'   : Deep navy background dengan aksen biru
+ * - 'light'  : Clean white/gray background dengan aksen biru
  * - 'system' : Mengikuti preferensi sistem (dark/light)
  */
 
-// ─── Pure BCA Premium Palette ────────────────────────────────────────────
-const BCA_BLUE_MODERN  = "#00478F"; // Biru BCA modern (Primary/Trust)
-const BCA_LIGHT_BLUE   = "#0066CC"; // Biru BCA terang (Secondary/Accent)
-const NATURAL_TITANIUM = "#878681"; // Natural Titanium (Muted)
+// ─── Brand Palette ───────────────────────────────────────────────────────
+const BRAND_BLUE      = "#00478F"; // Primary
+const BRAND_LIGHT_BLUE = "#0066CC"; // Secondary/Accent
+const NATURAL_TITANIUM = "#878681"; // Muted
 
 const DarkColors = {
   // Backgrounds — Deep Navy Charcoal
@@ -28,11 +28,11 @@ const DarkColors = {
   bgDeep:     "#020617", // Slate-950
 
   // Theme Specific Backgrounds
-  brandBg:   "#00478F20", // Biru BCA gelap
+  brandBg:   "#00478F20",
   incomeBg:  "#10B98120", 
   expenseBg: "#EF444420", 
-  warningBg: "#FBBF2415", // Tint emas transparan
-  infoBg:    "#0066CC20", // Biru BCA terang transparan
+  warningBg: "#FBBF2415",
+  infoBg:    "#0066CC20",
 
   // Text
   textPrimary:   "#F8F9FA", // Off-white
@@ -58,11 +58,11 @@ const LightColors = {
   bgDeep: "#E2E8F0",
 
   // Theme Specific Backgrounds
-  brandBg:   BCA_BLUE_MODERN + "15",
+  brandBg:   BRAND_BLUE + "15",
   incomeBg:  "#10B98115",
   expenseBg: "#EF444415",
   warningBg: "#FBBF2415",
-  infoBg:    BCA_LIGHT_BLUE + "15",
+  infoBg:    BRAND_LIGHT_BLUE + "15",
 
   // Text
   textPrimary: "#0F172A", // Slate-900
@@ -80,16 +80,14 @@ const LightColors = {
   overlayDark: "rgba(0,0,0,0.5)",
 };
 
-const iPhone15Colors = DarkColors;
-
 // ─── Common colors ──────────────────────────────────────────────────────────
 const CommonColors = {
-  brand:     BCA_BLUE_MODERN, // Biru untuk Card Utama, Header, Tombol Simpan
-  secondary: BCA_LIGHT_BLUE,  // Biru terang untuk Badge, Filter Aktif, "Lihat Semua"
+  brand:     BRAND_BLUE,
+  secondary: BRAND_LIGHT_BLUE,
   income:    "#10B981",       // Fresh Emerald
   expense:   "#EF4444",       // Crisp Red
-  warning:   "#FBBF24",       // Kuning Emas BCA
-  info:      BCA_LIGHT_BLUE,
+  warning:   "#FBBF24",       // Amber
+  info:      BRAND_LIGHT_BLUE,
 };
 
 export const getThemeColors = (theme = "dark") => {
@@ -98,9 +96,6 @@ export const getThemeColors = (theme = "dark") => {
   }
   return { ...CommonColors, ...DarkColors };
 };
-
-// Legacy Export for compatibility while transitioning
-export const Colors = { ...DarkColors, ...CommonColors };
 
 export const FontSizes = {
   xs: 10,
@@ -139,30 +134,6 @@ export const Spacing = {
   lg: 16,
   xl: 20,
   "2xl": 24,
-};
-
-export const TransactionTypeConfig = {
-  expense: {
-    icon: "arrow-down",
-    color: CommonColors.expense,
-    bg: CommonColors.expenseBg,
-    label: "Keluar",
-    sign: "−",
-  },
-  income: {
-    icon: "arrow-up",
-    color: CommonColors.income,
-    bg: CommonColors.incomeBg,
-    label: "Masuk",
-    sign: "+",
-  },
-  transfer: {
-    icon: "swap-horizontal",
-    color: CommonColors.brand,
-    bg: CommonColors.brandBg,
-    label: "Transfer",
-    sign: "",
-  },
 };
 
 export const getTransactionTypeConfig = (theme = "dark") => {

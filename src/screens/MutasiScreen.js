@@ -499,8 +499,13 @@ export default function MutasiScreen({ navigation, route }) {
         ListEmptyComponent={
           !loading && (
             <View style={styles.emptyState}>
-              <Ionicons name="receipt-outline" size={56} color={colors.bgElevated} />
-              <Text style={styles.emptyTitle}>Tidak ada transaksi</Text>
+              <Ionicons name={loadError ? "cloud-offline-outline" : "receipt-outline"} size={56} color={loadError ? colors.expense : colors.bgElevated} />
+              <Text style={styles.emptyTitle}>{loadError ? 'Gagal memuat data' : 'Tidak ada transaksi'}</Text>
+              {loadError && (
+                <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colors.brand, marginTop: 16 }]} onPress={() => loadData(true)}>
+                  <Text style={styles.retryBtnText}>Coba Lagi</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )
         }
@@ -619,6 +624,8 @@ const makeStyles = (colors) => StyleSheet.create({
   listContent: { paddingBottom: 100 },
   emptyState: { alignItems: 'center', padding: 60 },
   emptyTitle: { marginTop: 16, fontSize: 15, fontWeight: '600', color: colors.textSecondary },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.1)', justifyContent: 'center', alignItems: 'center' },
   modalBody: { padding: 16 },
   modalDesc: { fontSize: 14, textAlign: 'center', marginBottom: 16, color: colors.textSecondary },
