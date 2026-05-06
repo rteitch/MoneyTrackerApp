@@ -64,7 +64,7 @@ function Section({ title, subtitle, children, styles }) {
   );
 }
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ route }) {
   const db = useSQLiteContext();
   const { userName: globalUserName, colors, themeMode } = useAppContext();
   const { setUserName, setThemeMode } = useAppActions();
@@ -89,7 +89,8 @@ export default function SettingsScreen() {
   const [subCatName, setSubCatName] = useState("");
   const [existingSubs, setExistingSubs] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [activeTab, setActiveTab] = useState("wallet"); // 'wallet' | 'category' | 'profile'
+  // Support initialTab param from MoreScreen navigation
+  const [activeTab, setActiveTab] = useState(route?.params?.initialTab || "wallet");
 
   const [isResetModalVisible, setResetModalVisible] = useState(false);
 
@@ -536,8 +537,13 @@ export default function SettingsScreen() {
       >
         <Text style={styles.pageTitle}>Pengaturan</Text>
 
-        {/* Tab Switcher */}
-        <View style={styles.tabs}>
+        {/* Tab Switcher — horizontal scroll to avoid overflow with 5 tabs */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.tabs]}
+          style={{ marginHorizontal: 0, marginBottom: 0 }}
+        >
           {TABS.map((tab) => (
             <TouchableOpacity
               key={tab.key}
@@ -551,7 +557,7 @@ export default function SettingsScreen() {
             >
               <Ionicons
                 name={tab.icon}
-                size={16}
+                size={15}
                 color={activeTab === tab.key ? colors.secondary : colors.textMuted}
               />
               <Text
@@ -567,7 +573,7 @@ export default function SettingsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         {/* WALLET TAB */}
         {activeTab === "wallet" && (
@@ -1297,22 +1303,22 @@ const makeStyles = (colors) =>
 
     tabs: {
       flexDirection: "row",
-      marginHorizontal: 16,
-      borderRadius: 14,
-      padding: 4,
+      paddingHorizontal: 16,
+      paddingVertical: 4,
       marginBottom: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.bgCard,
+      gap: 6,
     },
     tab: {
-      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
       borderRadius: 10,
-      gap: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.bgCard,
+      gap: 5,
     },
     tabText: { fontSize: 11, fontWeight: "700" },
 

@@ -572,16 +572,16 @@ const makeStyles = (colors) => StyleSheet.create({
   typeChipText: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
   typeChipTextActive: { color: '#fff', fontWeight: "800" },
 
-  combinedFilterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 16, alignItems: 'flex-end' },
-  filterWrapper: { flex: 1 },
-  filterSmallLabel: { fontSize: 10, fontWeight: '700', marginBottom: 4, marginLeft: 4, color: colors.textMuted },
+  combinedFilterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12, alignItems: 'flex-end' },
+  filterWrapper: { flex: 1, minWidth: 0 },
+  filterSmallLabel: { fontSize: 10, fontWeight: '700', marginBottom: 4, marginLeft: 2, color: colors.textMuted },
   filterToggle: { 
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
-    paddingHorizontal: 12, height: 40, borderRadius: 10, 
+    paddingHorizontal: 10, minHeight: 40, borderRadius: 10, 
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgCard 
   },
   filterToggleActive: { backgroundColor: colors.infoBg, borderColor: colors.secondary },
-  filterToggleLabel: { fontSize: 12, flex: 1, color: colors.textMuted },
+  filterToggleLabel: { fontSize: 12, flex: 1, color: colors.textMuted, marginRight: 4 },
   filterToggleLabelActive: { color: colors.secondary, fontWeight: '700' },
 
   resetBtn: { 
@@ -599,10 +599,9 @@ const makeStyles = (colors) => StyleSheet.create({
   periodChipTextActive: { color: '#fff' },
 
   summaryBar: { 
-    marginHorizontal: 16, borderRadius: 16, padding: 16, marginBottom: 16, 
+    marginHorizontal: 16, borderRadius: 14, padding: 14, marginBottom: 12, 
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgElevated,
-    // Titanium Plate Look
-    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4
+    elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3
   },
   summaryRow: { flexDirection: 'row', alignItems: 'center' },
   summaryItem: { flex: 1, alignItems: 'center' },
@@ -621,7 +620,7 @@ const makeStyles = (colors) => StyleSheet.create({
   dateIncome: { fontSize: 11, fontWeight: '700', color: colors.income },
   dateExpense: { fontSize: 11, fontWeight: '700', color: colors.expense },
   
-  listContent: { paddingBottom: 100 },
+  listContent: { paddingBottom: 120 },
   emptyState: { alignItems: 'center', padding: 60 },
   emptyTitle: { marginTop: 16, fontSize: 15, fontWeight: '600', color: colors.textSecondary },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },

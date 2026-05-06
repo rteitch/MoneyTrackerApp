@@ -1,150 +1,164 @@
-import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDatabase } from './src/db/database';
 
-// Imported Screens
+// Context & Error Boundary
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import CustomTabBar from './src/components/CustomTabBar';
+
+// Screens
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import DebtScreen from './src/screens/DebtScreen';
+import MoreScreen from './src/screens/MoreScreen';
 import MutasiScreen from './src/screens/MutasiScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TransactionScreen from './src/screens/TransactionScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
-// Custom Loading Fallback
+// ─── Loading Fallback ──────────────────────────────────────────────────────────
 function LoadingFallback() {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
       <ActivityIndicator size="large" color="#00478F" />
-      <Text style={{ marginTop: 14, color: '#878681', fontSize: 14, letterSpacing: 0.5 }}>Memuat database...</Text>
+      <Text style={{ marginTop: 14, color: '#878681', fontSize: 14, letterSpacing: 0.5 }}>
+        Memuat database...
+      </Text>
     </View>
   );
 }
 
-// ErrorBoundary is imported from src/components/ErrorBoundary.js
-
-function AppContent() {
-  const insets = useSafeAreaInsets();
+// ─── Bottom Tabs (4 tabs only) ────────────────────────────────────────────────
+function MainTabs() {
   const { colors } = useAppContext();
 
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName;
-            if (route.name === 'Beranda') iconName = focused ? 'home' : 'home-outline';
-            else if (route.name === 'Mutasi') iconName = focused ? 'list' : 'list-outline';
-            else if (route.name === 'Tambah Transaksi') iconName = focused ? 'add-circle' : 'add-circle-outline';
-            else if (route.name === 'Statistik') iconName = focused ? 'bar-chart' : 'bar-chart-outline';
-            else if (route.name === 'Hutang') iconName = focused ? 'swap-vertical' : 'swap-vertical-outline';
-            else if (route.name === 'Pengaturan') iconName = focused ? 'settings' : 'settings-outline';
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-          tabBarActiveTintColor: colors.brand,
-          tabBarInactiveTintColor: colors.textMuted,
-          tabBarStyle: {
-            backgroundColor: colors.bgCard,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            height: 62 + insets.bottom,
-            paddingBottom: 8 + insets.bottom,
-            paddingTop: 6,
-          },
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: '600',
-          },
-          headerStyle: {
-            backgroundColor: colors.bgCard,
-            shadowColor: 'transparent',
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
-            elevation: 0,
-          },
-          headerTintColor: colors.textPrimary,
-          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
-          headerShadowVisible: false,
-        })}
-      >
-        <Tab.Screen 
-          name="Beranda" 
-          component={DashboardScreen} 
-          options={{ title: 'Beranda' }} 
-          listeners={{
-            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-          }}
-        />
-        <Tab.Screen 
-          name="Mutasi" 
-          component={MutasiScreen} 
-          options={{ title: 'Mutasi' }} 
-          listeners={{
-            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-          }}
-        />
-        <Tab.Screen 
-          name="Tambah Transaksi" 
-          component={TransactionScreen} 
-          options={{ title: 'Catat Transaksi' }} 
-          listeners={{
-            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
-          }}
-        />
-        <Tab.Screen 
-          name="Statistik" 
-          component={AnalyticsScreen} 
-          options={{ title: 'Statistik' }} 
-          listeners={{
-            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-          }}
-        />
-        <Tab.Screen
-          name="Hutang"
-          component={DebtScreen}
-          options={{ title: 'Hutang' }}
-          listeners={{
-            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-          }}
-        />
-        <Tab.Screen
-          name="Anggaran"
-          component={BudgetScreen}
-          options={{
-            title: 'Anggaran',
-            tabBarButton: () => null, // Hide from tab bar, accessible via navigation
-          }}
-        />
-        <Tab.Screen
-          name="Pengaturan"
-          component={SettingsScreen}
-          options={{ title: 'Pengaturan' }}
-          listeners={{
-            tabPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-          }}
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
+    <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={({ route }) => ({
+        headerStyle: {
+          backgroundColor: colors.bgCard,
+          shadowColor: 'transparent',
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          elevation: 0,
+        },
+        headerTintColor: colors.textPrimary,
+        headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+        headerShadowVisible: false,
+      })}
+    >
+      <Tab.Screen
+        name="Beranda"
+        component={DashboardScreen}
+        options={{ title: 'Beranda' }}
+      />
+      <Tab.Screen
+        name="Mutasi"
+        component={MutasiScreen}
+        options={{ title: 'Mutasi' }}
+      />
+      <Tab.Screen
+        name="Statistik"
+        component={AnalyticsScreen}
+        options={{ title: 'Statistik' }}
+      />
+      <Tab.Screen
+        name="Lainnya"
+        component={MoreScreen}
+        options={{ title: 'Lainnya' }}
+      />
+    </Tab.Navigator>
   );
 }
 
-// StatusBar component yang respons terhadap theme
+// ─── Root Stack Navigator ─────────────────────────────────────────────────────
+// Allows modal screens to overlay the tab bar
+function AppContent() {
+  const { colors } = useAppContext();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bgPrimary },
+      }}
+    >
+      {/* Main tab view */}
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+
+      {/* Screens accessible from tabs but without their own tab */}
+      <Stack.Screen
+        name="Tambah Transaksi"
+        component={TransactionScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: 'Catat Transaksi',
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="Hutang"
+        component={DebtScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: 'Hutang & Piutang',
+        }}
+      />
+      <Stack.Screen
+        name="Anggaran"
+        component={BudgetScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: 'Anggaran Bulanan',
+        }}
+      />
+      <Stack.Screen
+        name="Pengaturan"
+        component={SettingsScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: 'Pengaturan',
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+// ─── Status Bar ───────────────────────────────────────────────────────────────
 function AppStatusBar() {
   const { currentTheme } = useAppContext();
   return <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />;
 }
 
+// ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -155,8 +169,10 @@ export default function App() {
           loadingFallback={<LoadingFallback />}
         >
           <AppProvider>
-            <AppStatusBar />
-            <AppContent />
+            <NavigationContainer>
+              <AppStatusBar />
+              <AppContent />
+            </NavigationContainer>
           </AppProvider>
         </SQLiteProvider>
       </ErrorBoundary>

@@ -7,6 +7,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -15,6 +16,9 @@ import {
   View,
   ScrollView
 } from 'react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const WALLET_CARD_WIDTH = Math.min(155, SCREEN_WIDTH * 0.38);
 import BottomSheetModal from '../components/BottomSheetModal';
 import BudgetProgressBar from '../components/BudgetProgressBar';
 import TransactionCard from '../components/TransactionCard';
@@ -245,7 +249,7 @@ export default function DashboardScreen({ navigation }) {
             </TouchableOpacity>
           )}
           ListFooterComponent={
-            <TouchableOpacity style={styles.addWalletCard} onPress={() => navigation.navigate('Pengaturan', { tab: 'wallet' })}>
+            <TouchableOpacity style={styles.addWalletCard} onPress={() => navigation.navigate('Pengaturan', { initialTab: 'wallet' })}>
               <Ionicons name="add-circle-outline" size={24} color={colors.textSecondary} />
               <Text style={styles.addWalletText}>Tambah</Text>
             </TouchableOpacity>
@@ -472,13 +476,13 @@ const makeStyles = (colors) => StyleSheet.create({
   },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   heroLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, color: 'rgba(255,255,255,0.7)' },
-  heroBalance: { fontSize: 32, fontWeight: '900', marginBottom: 20, color: '#ffffff' },
+  heroBalance: { fontSize: 28, fontWeight: '900', marginBottom: 20, color: '#ffffff' },
   heroDivider: { height: 1, width: '100%', marginBottom: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
   heroStats: { flexDirection: 'row', alignItems: 'center' },
   heroStatItem: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   heroStatIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10, backgroundColor: 'rgba(255,255,255,0.1)' },
   heroStatLabel: { fontSize: 10, fontWeight: '700', marginBottom: 2, color: 'rgba(255,255,255,0.6)' },
-  heroStatVal: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
+  heroStatVal: { fontSize: 12, fontWeight: '800', color: '#ffffff', flexShrink: 1 },
   heroStatDivider: { width: 1, height: 30, marginHorizontal: 15, backgroundColor: 'rgba(255,255,255,0.1)' },
   savingsBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   savingsText: { fontSize: 10, fontWeight: '800' },
@@ -486,25 +490,24 @@ const makeStyles = (colors) => StyleSheet.create({
   sectionLabel: { fontSize: 17, fontWeight: '800', marginLeft: 20, marginBottom: 16, color: colors.textPrimary, letterSpacing: 0.3 },
   walletScroll: { paddingLeft: 16, paddingRight: 8, marginBottom: 24 },
   walletCard: {
-    width: 155,
-    borderRadius: 22,
-    padding: 16,
-    marginRight: 14,
+    width: WALLET_CARD_WIDTH,
+    borderRadius: 18,
+    padding: 14,
+    marginRight: 12,
     borderWidth: 1,
     borderLeftWidth: 3,
     backgroundColor: colors.bgCard,
     borderColor: colors.border,
-    // Titanium Depth
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  walletDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 10 },
+  walletDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 8 },
   walletType: { fontSize: 9, fontWeight: '800', marginBottom: 4, color: colors.textMuted },
-  walletName: { fontSize: 14, fontWeight: '700', marginBottom: 12, color: colors.textPrimary },
-  walletBalance: { fontSize: 15, fontWeight: '800', marginBottom: 12 },
+  walletName: { fontSize: 13, fontWeight: '700', marginBottom: 10, color: colors.textPrimary },
+  walletBalance: { fontSize: 13, fontWeight: '800', marginBottom: 10 },
   walletProgressBG: { height: 4, width: '100%', borderRadius: 2, overflow: 'hidden', backgroundColor: colors.bgElevated },
   walletProgressFill: { height: '100%', borderRadius: 2 },
   addWalletCard: {
@@ -555,7 +558,7 @@ const makeStyles = (colors) => StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
   chipTextActive: { color: '#fff' },
   
-  listContent: { paddingBottom: 100 },
+  listContent: { paddingBottom: 120 },
   emptyState: { padding: 40, alignItems: 'center' },
   emptyText: { marginTop: 12, fontSize: 14, fontWeight: '600', color: colors.textSecondary },
   modalBody: { paddingVertical: 10 },

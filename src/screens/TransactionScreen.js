@@ -481,15 +481,17 @@ const makeStyles = (colors) => StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: 40 },
   typeSwitcher: {
-    flexDirection: 'row', margin: 16,
+    flexDirection: 'row', margin: 16, marginTop: 12,
     borderRadius: 14, padding: 4, borderWidth: 1,
     backgroundColor: colors.bgCard, borderColor: colors.border,
   },
   typeBtn: {
-    flex: 1, flexDirection: 'row', paddingVertical: 10, alignItems: 'center',
-    justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'transparent',
+    flex: 1, flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 4,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, borderWidth: 1, borderColor: 'transparent',
+    minWidth: 0,
   },
-  typeText: { fontWeight: '700', fontSize: 12 },
+  typeText: { fontWeight: '700', fontSize: 11, flexShrink: 1 },
 
   amountCard: {
     marginHorizontal: 16, borderRadius: 24,
@@ -502,7 +504,7 @@ const makeStyles = (colors) => StyleSheet.create({
     shadowRadius: 8,
   },
   amountLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8, color: colors.textSecondary },
-  amountInput: { fontSize: 32, fontWeight: '800', marginBottom: 16, color: colors.textPrimary },
+  amountInput: { fontSize: 28, fontWeight: '800', marginBottom: 16, color: colors.textPrimary },
   quickAmountsScroll: { flexGrow: 0 },
   quickBtn: {
     paddingHorizontal: 12, paddingVertical: 6,
