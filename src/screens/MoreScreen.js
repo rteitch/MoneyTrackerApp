@@ -65,6 +65,39 @@ export default function MoreScreen({ navigation }) {
 
   const FEATURE_MENU = [
     {
+      key: 'planner',
+      label: 'Financial Planner',
+      subtitle: 'Skor, diagnosa & rekomendasi keuangan',
+      icon: 'analytics',
+      color: '#0ea5e9',
+      highlight: true,
+      onPress: () => navigateTo('Planner'),
+    },
+    {
+      key: 'goals',
+      label: 'Target Finansial',
+      subtitle: 'Atur & pantau tujuan keuangan',
+      icon: 'flag',
+      color: '#8b5cf6',
+      onPress: () => navigateTo('Goals'),
+    },
+    {
+      key: 'simulator',
+      label: 'Simulator Keuangan',
+      subtitle: 'Simulasi investasi, hemat & cicilan',
+      icon: 'calculator',
+      color: '#10B981',
+      onPress: () => navigateTo('Simulator'),
+    },
+    {
+      key: 'review',
+      label: 'Evaluasi & Achievement',
+      subtitle: 'Laporan bulanan & lencana prestasi',
+      icon: 'trophy',
+      color: '#f59e0b',
+      onPress: () => navigateTo('MonthlyReview'),
+    },
+    {
       key: 'debt',
       label: 'Hutang & Piutang',
       subtitle: debtSummary.totalReceivable > 0 || debtSummary.totalPayable > 0

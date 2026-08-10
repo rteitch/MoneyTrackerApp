@@ -21,6 +21,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const WALLET_CARD_WIDTH = Math.min(155, SCREEN_WIDTH * 0.38);
 import BottomSheetModal from '../components/BottomSheetModal';
 import BudgetProgressBar from '../components/BudgetProgressBar';
+import HealthScoreCard from '../components/HealthScoreCard';
 import TransactionCard from '../components/TransactionCard';
 import CountUp from '../components/CountUp';
 import { useAppContext } from '../context/AppContext';
@@ -33,6 +34,7 @@ import {
   getTotalHarta,
   getBudgetWithSpending,
   getDebtSummary,
+  getLatestAssessment,
 } from '../db/database';
 import { formatRupiah, getGreeting } from '../utils/formatting';
 
@@ -48,6 +50,7 @@ export default function DashboardScreen({ navigation }) {
   const db = useSQLiteContext();
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
   const [recentTX, setRecentTX] = useState([]);
+  const [latestAssessment, setLatestAssessment] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [totalHarta, setTotalHarta] = useState(0);
   const [budgets, setBudgets] = useState([]);
@@ -67,13 +70,14 @@ export default function DashboardScreen({ navigation }) {
     try {
       const boundary = getDateFilterBoundary(filter);
       const now = new Date();
-      const [s, tx, accs, total, b, ds] = await Promise.all([
+      const [s, tx, accs, total, b, ds, assessment] = await Promise.all([
         getStats(db, boundary),
         getRecentTransactions(db, 10, boundary),
         getAccounts(db),
         getTotalHarta(db),
         getBudgetWithSpending(db, now.getMonth() + 1, now.getFullYear()),
         getDebtSummary(db),
+        getLatestAssessment(db),
       ]);
       setStats(s);
       setRecentTX(tx);
@@ -81,6 +85,7 @@ export default function DashboardScreen({ navigation }) {
       setTotalHarta(total);
       setBudgets(b);
       setDebtSummary(ds);
+      if (assessment) setLatestAssessment(assessment);
     } catch (e) {
       console.error('loadData error:', e);
       Alert.alert('Error', 'Gagal memuat data dashboard.');
@@ -89,6 +94,7 @@ export default function DashboardScreen({ navigation }) {
       setRefreshing(false);
     }
   }, [db, filter]);
+
 
   useFocusEffect(
     useCallback(() => {
@@ -202,6 +208,13 @@ export default function DashboardScreen({ navigation }) {
             </View>
           </View>
         </LinearGradient>
+
+        {/* Financial Health Score Card */}
+        <HealthScoreCard
+          analysis={latestAssessment}
+          compact
+          onPressSeeDetail={() => navigation.navigate('Planner')}
+        />
 
         {/* Wallets Section */}
         <Text style={styles.sectionLabel}>Dompet & Rekening</Text>

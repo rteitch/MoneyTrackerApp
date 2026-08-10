@@ -139,7 +139,11 @@ export function getGreeting() {
 export function escapeCSV(val) {
   if (val === null || val === undefined) return '';
   let str = String(val);
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+  // Neutralize CSV Formula Injection (=, +, -, @, \t, \r)
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (str.includes(',') || str.includes(';') || str.includes('"') || str.includes('\n')) {
     str = `"${str.replace(/"/g, '""')}"`;
   }
   return str;

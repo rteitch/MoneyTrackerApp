@@ -16,12 +16,17 @@ import CustomTabBar from './src/components/CustomTabBar';
 
 // Screens
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
+import AssessmentScreen from './src/screens/AssessmentScreen';
 import BudgetScreen from './src/screens/BudgetScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import DebtScreen from './src/screens/DebtScreen';
+import GoalsScreen from './src/screens/GoalsScreen';
+import MonthlyReviewScreen from './src/screens/MonthlyReviewScreen';
 import MoreScreen from './src/screens/MoreScreen';
 import MutasiScreen from './src/screens/MutasiScreen';
+import PlannerScreen from './src/screens/PlannerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import SimulatorScreen from './src/screens/SimulatorScreen';
 import TransactionScreen from './src/screens/TransactionScreen';
 
 const Tab = createBottomTabNavigator();
@@ -146,6 +151,66 @@ function AppContent() {
           headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
           headerShadowVisible: false,
           title: 'Pengaturan',
+        }}
+      />
+      <Stack.Screen
+        name="Planner"
+        component={PlannerScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: 'Financial Planner',
+        }}
+      />
+      <Stack.Screen
+        name="Assessment"
+        component={AssessmentScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: 'Analisis Keuangan',
+        }}
+      />
+      <Stack.Screen
+        name="Simulator"
+        component={SimulatorScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: '💡 Simulator',
+        }}
+      />
+      <Stack.Screen
+        name="Goals"
+        component={GoalsScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: '🎯 Target Finansial',
+        }}
+      />
+      <Stack.Screen
+        name="MonthlyReview"
+        component={MonthlyReviewScreen}
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: colors.bgCard },
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 17 },
+          headerShadowVisible: false,
+          title: '🏆 Evaluasi & Achievement',
         }}
       />
     </Stack.Navigator>

@@ -1,6 +1,6 @@
 
 // Current DB schema version — increment when making schema changes
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export async function initDatabase(db) {
   try {
@@ -191,6 +191,101 @@ async function runMigrations(db) {
         );
       `);
     } catch(_e) {}
+  }
+
+  // Migration v3 → v4: Financial Planner tables
+  if (currentVersion < 4) {
+    try {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS financial_profile (
+          id               INTEGER PRIMARY KEY DEFAULT 1,
+          monthly_income   REAL NOT NULL DEFAULT 0,
+          income_stability TEXT NOT NULL DEFAULT 'stable',
+          employment_type  TEXT NOT NULL DEFAULT 'employee',
+          marital_status   TEXT NOT NULL DEFAULT 'single',
+          dependents       INTEGER NOT NULL DEFAULT 0,
+          age              INTEGER DEFAULT NULL,
+          location_type    TEXT DEFAULT 'city',
+          updated_at       TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS income_sources (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          name        TEXT NOT NULL,
+          type        TEXT NOT NULL DEFAULT 'salary',
+          amount      REAL NOT NULL DEFAULT 0,
+          frequency   TEXT NOT NULL DEFAULT 'monthly',
+          is_active   INTEGER NOT NULL DEFAULT 1,
+          created_at  TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS fixed_expenses (
+          id               INTEGER PRIMARY KEY AUTOINCREMENT,
+          name             TEXT NOT NULL,
+          category         TEXT NOT NULL DEFAULT 'other',
+          necessity_level  TEXT NOT NULL DEFAULT 'essential',
+          amount           REAL NOT NULL DEFAULT 0,
+          frequency        TEXT NOT NULL DEFAULT 'monthly',
+          is_active        INTEGER NOT NULL DEFAULT 1,
+          created_at       TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS financial_goals (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          name            TEXT NOT NULL,
+          type            TEXT NOT NULL DEFAULT 'custom',
+          target_amount   REAL NOT NULL DEFAULT 0,
+          current_amount  REAL NOT NULL DEFAULT 0,
+          monthly_alloc   REAL NOT NULL DEFAULT 0,
+          target_date     TEXT,
+          priority        INTEGER NOT NULL DEFAULT 1,
+          status          TEXT NOT NULL DEFAULT 'active',
+          created_at      TEXT DEFAULT (datetime('now')),
+          updated_at      TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS financial_assessments (
+          id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+          period_month         INTEGER NOT NULL,
+          period_year          INTEGER NOT NULL,
+          total_income         REAL NOT NULL DEFAULT 0,
+          total_expense        REAL NOT NULL DEFAULT 0,
+          cash_flow            REAL NOT NULL DEFAULT 0,
+          savings_rate         REAL NOT NULL DEFAULT 0,
+          health_score         REAL NOT NULL DEFAULT 0,
+          score_cashflow       REAL DEFAULT 0,
+          score_debt           REAL DEFAULT 0,
+          score_emergency      REAL DEFAULT 0,
+          score_savings        REAL DEFAULT 0,
+          score_housing        REAL DEFAULT 0,
+          score_goals          REAL DEFAULT 0,
+          ratio_housing        REAL DEFAULT 0,
+          ratio_food           REAL DEFAULT 0,
+          ratio_transport      REAL DEFAULT 0,
+          ratio_debt           REAL DEFAULT 0,
+          ratio_lifestyle      REAL DEFAULT 0,
+          ratios_json          TEXT DEFAULT '{}',
+          diagnoses_json       TEXT DEFAULT '[]',
+          calculated_at        TEXT DEFAULT (datetime('now')),
+          UNIQUE(period_month, period_year)
+        );
+
+        CREATE TABLE IF NOT EXISTS simulations (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          name         TEXT NOT NULL,
+          type         TEXT NOT NULL,
+          input_json   TEXT NOT NULL DEFAULT '{}',
+          result_json  TEXT NOT NULL DEFAULT '{}',
+          created_at   TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS achievements (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          key          TEXT NOT NULL UNIQUE,
+          unlocked_at  TEXT
+        );
+      `);
+    } catch (_e) { console.warn('Migration v4 partial error:', _e); }
   }
 
   // Save current version
@@ -878,4 +973,264 @@ export async function factoryReset(db) {
     await db.runAsync('ROLLBACK;');
     throw error;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FINANCIAL PLANNER — DB Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Financial Profile ────────────────────────────────────────────────────────
+
+export async function getFinancialProfile(db) {
+  return await db.getFirstAsync('SELECT * FROM financial_profile WHERE id = 1');
+}
+
+export async function saveFinancialProfile(db, profile) {
+  const existing = await getFinancialProfile(db);
+  if (existing) {
+    await db.runAsync(
+      `UPDATE financial_profile SET
+        monthly_income=?, income_stability=?, employment_type=?,
+        marital_status=?, dependents=?, age=?, location_type=?,
+        updated_at=datetime('now')
+       WHERE id=1`,
+      [
+        profile.monthly_income, profile.income_stability, profile.employment_type,
+        profile.marital_status, profile.dependents, profile.age, profile.location_type,
+      ]
+    );
+  } else {
+    await db.runAsync(
+      `INSERT INTO financial_profile
+        (id, monthly_income, income_stability, employment_type, marital_status, dependents, age, location_type)
+       VALUES (1,?,?,?,?,?,?,?)`,
+      [
+        profile.monthly_income, profile.income_stability, profile.employment_type,
+        profile.marital_status, profile.dependents, profile.age, profile.location_type,
+      ]
+    );
+  }
+}
+
+// ── Income Sources ────────────────────────────────────────────────────────────
+
+export async function getIncomeSources(db) {
+  return await db.getAllAsync('SELECT * FROM income_sources WHERE is_active=1 ORDER BY amount DESC');
+}
+
+export async function addIncomeSource(db, source) {
+  const result = await db.runAsync(
+    'INSERT INTO income_sources (name, type, amount, frequency) VALUES (?,?,?,?)',
+    [source.name, source.type, source.amount, source.frequency || 'monthly']
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateIncomeSource(db, id, source) {
+  await db.runAsync(
+    'UPDATE income_sources SET name=?, type=?, amount=?, frequency=? WHERE id=?',
+    [source.name, source.type, source.amount, source.frequency || 'monthly', id]
+  );
+}
+
+export async function deleteIncomeSource(db, id) {
+  await db.runAsync('UPDATE income_sources SET is_active=0 WHERE id=?', [id]);
+}
+
+export async function getTotalMonthlyIncome(db) {
+  const sources = await getIncomeSources(db);
+  return sources.reduce((sum, s) => {
+    const monthly = s.frequency === 'annual' ? s.amount / 12
+                  : s.frequency === 'weekly'  ? s.amount * 4
+                  : s.amount;
+    return sum + monthly;
+  }, 0);
+}
+
+// ── Fixed Expenses ────────────────────────────────────────────────────────────
+
+export async function getFixedExpenses(db) {
+  return await db.getAllAsync('SELECT * FROM fixed_expenses WHERE is_active=1 ORDER BY category, amount DESC');
+}
+
+export async function addFixedExpense(db, expense) {
+  const result = await db.runAsync(
+    'INSERT INTO fixed_expenses (name, category, necessity_level, amount, frequency) VALUES (?,?,?,?,?)',
+    [expense.name, expense.category, expense.necessity_level || 'essential', expense.amount, expense.frequency || 'monthly']
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateFixedExpense(db, id, expense) {
+  await db.runAsync(
+    'UPDATE fixed_expenses SET name=?, category=?, necessity_level=?, amount=?, frequency=? WHERE id=?',
+    [expense.name, expense.category, expense.necessity_level || 'essential', expense.amount, expense.frequency || 'monthly', id]
+  );
+}
+
+export async function deleteFixedExpense(db, id) {
+  await db.runAsync('UPDATE fixed_expenses SET is_active=0 WHERE id=?', [id]);
+}
+
+// ── Financial Goals ───────────────────────────────────────────────────────────
+
+export async function getFinancialGoals(db, statusFilter = 'active') {
+  if (statusFilter === 'all') {
+    return await db.getAllAsync('SELECT * FROM financial_goals ORDER BY priority, created_at');
+  }
+  return await db.getAllAsync(
+    'SELECT * FROM financial_goals WHERE status=? ORDER BY priority, created_at',
+    [statusFilter]
+  );
+}
+
+export async function addFinancialGoal(db, goal) {
+  const result = await db.runAsync(
+    `INSERT INTO financial_goals (name, type, target_amount, current_amount, monthly_alloc, target_date, priority)
+     VALUES (?,?,?,?,?,?,?)`,
+    [goal.name, goal.type, goal.target_amount, goal.current_amount || 0, goal.monthly_alloc || 0, goal.target_date || null, goal.priority || 1]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function updateFinancialGoal(db, id, goal) {
+  await db.runAsync(
+    `UPDATE financial_goals SET name=?, type=?, target_amount=?, current_amount=?,
+     monthly_alloc=?, target_date=?, priority=?, status=?, updated_at=datetime('now') WHERE id=?`,
+    [goal.name, goal.type, goal.target_amount, goal.current_amount, goal.monthly_alloc, goal.target_date, goal.priority, goal.status || 'active', id]
+  );
+}
+
+export async function contributeToGoal(db, goalId, amount) {
+  const goal = await db.getFirstAsync('SELECT * FROM financial_goals WHERE id=?', [goalId]);
+  if (!goal) throw new Error('Goal not found');
+  const newAmount = Math.min(goal.current_amount + amount, goal.target_amount);
+  const newStatus = newAmount >= goal.target_amount ? 'completed' : 'active';
+  await db.runAsync(
+    "UPDATE financial_goals SET current_amount=?, status=?, updated_at=datetime('now') WHERE id=?",
+    [newAmount, newStatus, goalId]
+  );
+  return { newAmount, newStatus };
+}
+
+export async function deleteFinancialGoal(db, id) {
+  await db.runAsync('DELETE FROM financial_goals WHERE id=?', [id]);
+}
+
+// ── Financial Assessments ─────────────────────────────────────────────────────
+
+export async function saveFinancialAssessment(db, assessment) {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO financial_assessments
+      (period_month, period_year, total_income, total_expense, cash_flow, savings_rate,
+       health_score, score_cashflow, score_debt, score_emergency, score_savings, score_housing, score_goals,
+       ratio_housing, ratio_food, ratio_transport, ratio_debt, ratio_lifestyle, ratios_json, diagnoses_json, calculated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
+    [
+      assessment.period_month, assessment.period_year,
+      assessment.total_income, assessment.total_expense, assessment.cash_flow, assessment.savings_rate,
+      assessment.health_score,
+      assessment.score_cashflow || 0, assessment.score_debt || 0, assessment.score_emergency || 0,
+      assessment.score_savings || 0, assessment.score_housing || 0, assessment.score_goals || 0,
+      assessment.ratio_housing || 0, assessment.ratio_food || 0, assessment.ratio_transport || 0,
+      assessment.ratio_debt || 0, assessment.ratio_lifestyle || 0,
+      JSON.stringify(assessment.ratios || {}),
+      JSON.stringify(assessment.diagnoses || []),
+    ]
+  );
+}
+
+export async function getLatestAssessment(db) {
+  const row = await db.getFirstAsync(
+    'SELECT * FROM financial_assessments ORDER BY period_year DESC, period_month DESC LIMIT 1'
+  );
+  if (!row) return null;
+  return {
+    ...row,
+    ratios: JSON.parse(row.ratios_json || '{}'),
+    diagnoses: JSON.parse(row.diagnoses_json || '[]'),
+  };
+}
+
+export async function getAssessmentHistory(db, limit = 6) {
+  const rows = await db.getAllAsync(
+    'SELECT * FROM financial_assessments ORDER BY period_year DESC, period_month DESC LIMIT ?',
+    [limit]
+  );
+  return rows.map(r => ({
+    ...r,
+    ratios: JSON.parse(r.ratios_json || '{}'),
+    diagnoses: JSON.parse(r.diagnoses_json || '[]'),
+  }));
+}
+
+// ── Aggregated transaction data for engine ────────────────────────────────────
+
+export async function getMonthlyTransactionSummary(db, month, year) {
+  const start = `${year}-${String(month).padStart(2,'0')}-01`;
+  const end   = `${year}-${String(month).padStart(2,'0')}-31`;
+
+  const rows = await db.getAllAsync(
+    `SELECT
+       t.type,
+       t.amount,
+       c.name  AS category_name,
+       sc.name AS subcategory_name
+     FROM transactions t
+     LEFT JOIN categories c ON t.category_id = c.id
+     LEFT JOIN subcategories sc ON t.subcategory_id = sc.id
+     WHERE t.is_deleted = 0
+       AND t.date >= ? AND t.date <= ?`,
+    [start, end]
+  );
+
+  return rows;
+}
+
+export async function getTotalLiquidBalance(db) {
+  // Liquid = cash + bank + ewallet (excludes credit & investment)
+  const row = await db.getFirstAsync(
+    `SELECT COALESCE(SUM(current_balance), 0) AS total
+     FROM accounts
+     WHERE is_active=1
+       AND exclude_from_total=0
+       AND type IN ('cash','bank','ewallet')`,
+  );
+  return row?.total || 0;
+}
+
+// ── Simulations ───────────────────────────────────────────────────────────────
+
+export async function saveSimulation(db, sim) {
+  const result = await db.runAsync(
+    'INSERT INTO simulations (name, type, input_json, result_json) VALUES (?,?,?,?)',
+    [sim.name, sim.type, JSON.stringify(sim.input), JSON.stringify(sim.result)]
+  );
+  return result.lastInsertRowId;
+}
+
+export async function getSimulations(db) {
+  const rows = await db.getAllAsync('SELECT * FROM simulations ORDER BY created_at DESC LIMIT 20');
+  return rows.map(r => ({
+    ...r,
+    input: JSON.parse(r.input_json || '{}'),
+    result: JSON.parse(r.result_json || '{}'),
+  }));
+}
+
+export async function deleteSimulation(db, id) {
+  await db.runAsync('DELETE FROM simulations WHERE id=?', [id]);
+}
+
+// ── Achievements ──────────────────────────────────────────────────────────────
+
+export async function getAchievements(db) {
+  return await db.getAllAsync('SELECT * FROM achievements');
+}
+
+export async function unlockAchievement(db, key) {
+  await db.runAsync(
+    `INSERT OR IGNORE INTO achievements (key, unlocked_at) VALUES (?, datetime('now'))`,
+    [key]
+  );
 }
