@@ -520,12 +520,15 @@ export default function SettingsScreen({ route }) {
     { key: "profile", label: "Profil", icon: "person" },
   ];
 
+  const insets = useSafeAreaInsets();
+
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 80 }}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

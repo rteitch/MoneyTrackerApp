@@ -24,6 +24,7 @@ export default function BudgetScreen() {
   const db = useSQLiteContext();
   const { colors } = useAppContext();
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const [budgets, setBudgets] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -209,7 +210,8 @@ export default function BudgetScreen() {
             </View>
           )
         }
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
       />

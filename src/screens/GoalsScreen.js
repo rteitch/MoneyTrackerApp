@@ -17,6 +17,7 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../context/AppContext';
 import {
   getFinancialGoals, addFinancialGoal, updateFinancialGoal,
@@ -147,32 +148,28 @@ export default function GoalsScreen({ navigation }) {
   const activeGoals    = goals.filter(g => g.status === 'active');
   const pausedGoals    = goals.filter(g => g.status === 'paused');
   const completedGoals = goals.filter(g => g.status === 'completed');
+  const totalCurrent = goals.reduce((s, g) => s + g.current_amount, 0);
+  const totalTarget = goals.reduce((s, g) => s + g.target_amount, 0);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadGoals(); }} tintColor={colors.brand} />}
       >
-        {/* Summary Header */}
-        {goals.length > 0 && (
-          <LinearGradient colors={[colors.brand + 'CC', colors.brand + '66']} style={styles.summaryBanner}>
+        {/* Total Target Banner */}
+        {activeGoals.length > 0 && (
+          <LinearGradient colors={[colors.brand, '#0284c7']} style={styles.summaryBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryVal}>{activeGoals.length}</Text>
-              <Text style={styles.summaryLabel}>Aktif</Text>
+              <Text style={styles.summaryVal}>{formatRupiah(totalCurrent)}</Text>
+              <Text style={styles.summaryLabel}>Terkumpul</Text>
             </View>
-            <View style={[styles.summaryDivider]} />
+            <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryVal}>{completedGoals.length}</Text>
-              <Text style={styles.summaryLabel}>Selesai</Text>
-            </View>
-            <View style={[styles.summaryDivider]} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryVal}>
-                {formatRupiah(goals.reduce((s, g) => s + g.current_amount, 0))}
-              </Text>
-              <Text style={styles.summaryLabel}>Total Terkumpul</Text>
+              <Text style={styles.summaryVal}>{formatRupiah(totalTarget)}</Text>
+              <Text style={styles.summaryLabel}>Total Target</Text>
             </View>
           </LinearGradient>
         )}
@@ -183,7 +180,7 @@ export default function GoalsScreen({ navigation }) {
             <Text style={styles.emptyEmoji}>🎯</Text>
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Belum Ada Target Finansial</Text>
             <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-              Buat tujuan finansial pertamamu — dana darurat, DP rumah, liburan, atau apapun!
+              Buat target seperti Dana Darurat, DP Rumah, atau Liburan untuk melacak progres tabunganmu.
             </Text>
           </View>
         )}
@@ -191,7 +188,7 @@ export default function GoalsScreen({ navigation }) {
         {/* Active Goals */}
         {activeGoals.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>🔥 Sedang Berjalan</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>🎯 Target Aktif ({activeGoals.length})</Text>
             {activeGoals.map(g => <GoalCard key={g.id} goal={g} colors={colors} styles={styles}
               onEdit={() => openForm(g)} onDelete={() => handleDelete(g)}
               onContribute={() => setShowContrib(g)} onToggle={() => handleToggleStatus(g)} />)}
@@ -218,7 +215,7 @@ export default function GoalsScreen({ navigation }) {
       </ScrollView>
 
       {/* FAB Add Button */}
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.brand }]} onPress={() => openForm()}>
+      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.brand, bottom: 80 + insets.bottom }]} onPress={() => openForm()}>
         <Ionicons name="add" size={26} color="#fff" />
       </TouchableOpacity>
 
@@ -347,17 +344,21 @@ function GoalCard({ goal, colors, styles, onEdit, onDelete, onContribute, onTogg
 
 // ─── Goal Form Modal ──────────────────────────────────────────────────────────
 function GoalFormModal({ visible, onClose, onSave, form, setForm, isEdit, colors, styles }) {
-  const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const insets = useSafeAreaInsets();
+  const setField = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bgPrimary }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colors.bgPrimary }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Math.max(16, insets.top) }]}>
           <TouchableOpacity onPress={onClose}><Text style={[styles.modalCancel, { color: colors.textMuted }]}>Batal</Text></TouchableOpacity>
-          <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{isEdit ? 'Edit Goal' : 'Goal Baru'}</Text>
+          <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{isEdit ? 'Edit Target' : 'Target Baru'}</Text>
           <TouchableOpacity onPress={onSave}><Text style={[styles.modalSave, { color: colors.brand }]}>Simpan</Text></TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 60 + insets.bottom }}>
           {/* Goal Type */}
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Tipe Tujuan</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
@@ -420,19 +421,23 @@ function GoalFormModal({ visible, onClose, onSave, form, setForm, isEdit, colors
 
 // ─── Contribute Modal ─────────────────────────────────────────────────────────
 function ContributeModal({ goal, onClose, onContribute, colors, styles }) {
+  const insets = useSafeAreaInsets();
   const [amount, setAmount] = useState('');
   const typeInfo = GOAL_TYPES.find(t => t.key === goal.type) || GOAL_TYPES[GOAL_TYPES.length - 1];
   const remaining = goal.target_amount - goal.current_amount;
 
   return (
     <Modal visible animationType="slide" presentationStyle="formSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bgPrimary }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: colors.bgPrimary }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={[styles.modalHeader, { borderBottomColor: colors.border, paddingTop: Math.max(16, insets.top) }]}>
           <TouchableOpacity onPress={onClose}><Text style={[styles.modalCancel, { color: colors.textMuted }]}>Batal</Text></TouchableOpacity>
           <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Tambah Dana</Text>
           <TouchableOpacity onPress={() => onContribute(amount)}><Text style={[styles.modalSave, { color: typeInfo.color }]}>Simpan</Text></TouchableOpacity>
         </View>
-        <View style={{ padding: 24 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, paddingBottom: 60 + insets.bottom }}>
           <Text style={[styles.contribGoalName, { color: colors.textPrimary }]}>{typeInfo.emoji} {goal.name}</Text>
           <Text style={[styles.contribRemaining, { color: colors.textMuted }]}>Sisa: {formatRupiah(remaining)}</Text>
 
@@ -455,7 +460,7 @@ function ContributeModal({ goal, onClose, onContribute, colors, styles }) {
             style={[styles.input, { backgroundColor: colors.bgCard, color: colors.textPrimary, borderColor: colors.border, fontSize: 20 }]}
             keyboardType="number-pad" placeholder="Rp 0" placeholderTextColor={colors.textFaint}
             autoFocus value={amount} onChangeText={v => setAmount(formatCurrencyInput(v))} />
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );

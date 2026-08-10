@@ -33,6 +33,7 @@ export default function DebtScreen() {
   const db = useSQLiteContext();
   const { colors } = useAppContext();
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState('receivable');
   const [debts, setDebts] = useState([]);
@@ -322,7 +323,8 @@ export default function DebtScreen() {
             </View>
           )
         }
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
       />

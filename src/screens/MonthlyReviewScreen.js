@@ -15,6 +15,7 @@ import {
   ActivityIndicator, RefreshControl, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../context/AppContext';
 import {
   getAssessmentHistory, getAchievements, getFinancialGoals,
@@ -88,6 +89,8 @@ export default function MonthlyReviewScreen({ navigation }) {
 
   const currentLevel = currentMonthAss ? getHealthLevel(currentMonthAss.health_score) : null;
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
       {/* Sub Tabs */}
@@ -115,7 +118,7 @@ export default function MonthlyReviewScreen({ navigation }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.brand} />}
       >
         {selectedTab === 'review' ? (

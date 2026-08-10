@@ -18,6 +18,7 @@ import {
   Platform, ScrollView, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../context/AppContext';
 import {
   saveFinancialProfile, addIncomeSource, getIncomeSources,
@@ -191,7 +192,7 @@ export default function AssessmentScreen({ navigation }) {
 
   // ── Render Steps ───────────────────────────────────────────────────────────
   const renderStep0 = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 + insets.bottom }}>
       <Text style={styles.stepTitle}>Profil Dasar</Text>
       <Text style={styles.stepSub}>Informasi ini membantu analisis lebih akurat</Text>
 
@@ -257,7 +258,7 @@ export default function AssessmentScreen({ navigation }) {
   );
 
   const renderStep1 = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 + insets.bottom }}>
       <Text style={styles.stepTitle}>Sumber Pendapatan</Text>
       <Text style={styles.stepSub}>Masukkan pendapatan bulanan bersih (setelah pajak)</Text>
 
@@ -318,9 +319,9 @@ export default function AssessmentScreen({ navigation }) {
   );
 
   const renderStep2 = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={styles.stepTitle}>Pengeluaran Tetap</Text>
-      <Text style={styles.stepSub}>Pengeluaran rutin bulanan yang pasti terjadi</Text>
+    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 + insets.bottom }}>
+      <Text style={styles.stepTitle}>Pengeluaran Tetap Bulanan</Text>
+      <Text style={styles.stepSub}>Pengeluaran yang wajib dibayar setiap bulan (Sewa, Makan, Cicilan, dll)</Text>
 
       {expenses.map((ex, i) => (
         <View key={i} style={styles.itemCard}>
@@ -382,7 +383,7 @@ export default function AssessmentScreen({ navigation }) {
   const renderStep3 = () => {
     const cf = totalMonthlyIncome - totalMonthlyExpense;
     return (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 + insets.bottom }}>
         <Text style={styles.stepTitle}>Ringkasan</Text>
         <Text style={styles.stepSub}>Periksa sebelum menghitung skor</Text>
 
@@ -418,9 +419,14 @@ export default function AssessmentScreen({ navigation }) {
 
   const steps = [renderStep0, renderStep1, renderStep2, renderStep3];
   const stepLabels = ['Profil', 'Pendapatan', 'Pengeluaran', 'Selesai'];
+  const insets = useSafeAreaInsets();
 
   return (
-    <KeyboardAvoidingView style={[styles.root, { backgroundColor: colors.bgPrimary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: colors.bgPrimary }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
+    >
       {/* Progress */}
       <View style={styles.progressWrapper}>
         {stepLabels.map((label, i) => (
@@ -447,7 +453,16 @@ export default function AssessmentScreen({ navigation }) {
       </View>
 
       {/* Footer */}
-      <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.bgCard }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            borderTopColor: colors.border,
+            backgroundColor: colors.bgCard,
+            paddingBottom: Math.max(16, insets.bottom + 12),
+          },
+        ]}
+      >
         {step > 0 && (
           <TouchableOpacity style={[styles.btnSecondary, { borderColor: colors.border }]} onPress={goBack}>
             <Text style={[styles.btnSecondaryText, { color: colors.textSecondary }]}>← Kembali</Text>

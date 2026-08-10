@@ -15,6 +15,7 @@ import {
   ActivityIndicator, RefreshControl, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HealthScoreCard from '../components/HealthScoreCard';
 import { useAppContext } from '../context/AppContext';
 import {
@@ -132,6 +133,7 @@ export default function PlannerScreen({ navigation, route }) {
     );
   }
 
+  const insets = useSafeAreaInsets();
   const now = new Date();
   const monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
@@ -139,7 +141,7 @@ export default function PlannerScreen({ navigation, route }) {
     <ScrollView
       style={[styles.root, { backgroundColor: colors.bgPrimary }]}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 120 }}
+      contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
     >
       {/* Period */}

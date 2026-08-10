@@ -54,6 +54,7 @@ export default function MutasiScreen({ navigation, route }) {
   const { colors } = useAppContext();
   const styles = makeStyles(colors);
   const db = useSQLiteContext();
+  const insets = useSafeAreaInsets();
   
   const [transactions, setTransactions] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -509,7 +510,8 @@ export default function MutasiScreen({ navigation, route }) {
             </View>
           )
         }
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 100 + insets.bottom }]}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondary} />}
       />
 

@@ -15,6 +15,7 @@ import {
   Alert, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../context/AppContext';
 import { saveSimulation } from '../db/database';
 import { INVESTMENT_RETURNS, INFLATION_RATE_DEFAULT } from '../constants/benchmarks';
@@ -44,10 +45,15 @@ export default function SimulatorScreen({ navigation }) {
   const db = useSQLiteContext();
   const { colors } = useAppContext();
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('investment');
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: colors.bgPrimary }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
+    >
       {/* Tab Switcher */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
         {TABS.map(t => (
@@ -62,11 +68,18 @@ export default function SimulatorScreen({ navigation }) {
         ))}
       </ScrollView>
 
-      {tab === 'investment' && <InvestmentTab colors={colors} styles={styles} db={db} />}
-      {tab === 'expense'    && <ExpenseTab    colors={colors} styles={styles} db={db} />}
-      {tab === 'debt'       && <DebtTab       colors={colors} styles={styles} db={db} />}
-      {tab === 'goal'       && <GoalTab       colors={colors} styles={styles} db={db} />}
-    </View>
+      {/* Tab contents */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.tabContent, { paddingBottom: 120 + insets.bottom }]}
+      >
+        {tab === 'investment' && <InvestmentTab colors={colors} styles={styles} db={db} />}
+        {tab === 'expense'    && <ExpenseTab    colors={colors} styles={styles} db={db} />}
+        {tab === 'debt'       && <DebtTab       colors={colors} styles={styles} db={db} />}
+        {tab === 'goal'       && <GoalTab       colors={colors} styles={styles} db={db} />}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

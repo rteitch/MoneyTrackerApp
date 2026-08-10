@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ScrollView, KeyboardAvoidingView, Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from '@react-navigation/native';
 import { getCategories, getSubCategories, addTransaction, updateTransaction, getAccounts } from '../db/database';
@@ -244,13 +245,20 @@ export default function TransactionScreen({ navigation, route }) {
   const styles = makeStyles(colors);
   const activeType = TYPE_OPTIONS.find(t => t.key === type);
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.root} 
+    <KeyboardAvoidingView
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
     >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* Type Switcher */}
         <View style={styles.typeSwitcher}>
@@ -433,7 +441,7 @@ export default function TransactionScreen({ navigation, route }) {
       </ScrollView>
 
       {/* Save Button Area */}
-      <View style={styles.saveArea}>
+      <View style={[styles.saveArea, { paddingBottom: Math.max(16, insets.bottom + 12) }]}>
         {isEditMode && (
           <Text style={styles.editModeLabel}>Mode Edit Transaksi</Text>
         )}
