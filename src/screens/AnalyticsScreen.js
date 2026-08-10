@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import CountUp from '../components/CountUp';
 import MetricCard from '../components/MetricCard';
@@ -438,11 +439,14 @@ export default function AnalyticsScreen() {
   };
   const sc = statusConfig[financeStatus];
 
+  const insets = useSafeAreaInsets();
+
   return (
     <ScrollView
       style={[styles.root, { backgroundColor: colors.bgPrimary }]}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 80 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}

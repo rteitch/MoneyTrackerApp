@@ -16,6 +16,7 @@ import {
   View,
   ScrollView
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const WALLET_CARD_WIDTH = Math.min(155, SCREEN_WIDTH * 0.38);
@@ -377,6 +378,8 @@ export default function DashboardScreen({ navigation }) {
     );
   }
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
       <FlatList
@@ -396,7 +399,8 @@ export default function DashboardScreen({ navigation }) {
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Belum ada transaksi</Text>
           </View>
         }
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 100 + insets.bottom }]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />

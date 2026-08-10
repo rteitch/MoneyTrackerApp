@@ -12,6 +12,7 @@ import {
   View,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppContext } from '../context/AppContext';
 import { getDebtSummary, getBudgetWithSpending } from '../db/database';
@@ -191,11 +192,14 @@ export default function MoreScreen({ navigation }) {
     </TouchableOpacity>
   );
 
+  const insets = useSafeAreaInsets();
+
   return (
     <ScrollView
       style={[styles.root, { backgroundColor: colors.bgPrimary }]}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 100 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />
       }
