@@ -119,7 +119,7 @@ export default function BudgetScreen() {
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
 
   return (
-    <SafeAreaView style={styles.root}>
+    <View style={styles.root}>
       <FlatList
         data={budgets}
         keyExtractor={(item) => item.id.toString()}
@@ -223,7 +223,7 @@ export default function BudgetScreen() {
         message={statusModal.message}
         type={statusModal.type}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -199,7 +199,7 @@ export default function DebtScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.root}>
+    <View style={styles.root}>
       <FlatList
         data={debts}
         keyExtractor={(item) => item.id.toString()}
@@ -425,7 +425,7 @@ export default function DebtScreen() {
         message={statusModal.message}
         type={statusModal.type}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

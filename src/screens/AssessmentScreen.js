@@ -27,7 +27,7 @@ import {
 } from '../db/database';
 import { runFinancialAnalysis } from '../utils/financialEngine';
 import { runDiagnosis } from '../utils/diagnosisEngine';
-import { formatCurrencyInput, parseCurrencyRaw as parseAmount } from '../utils/formatting';
+import { formatCurrencyInput, parseCurrencyRaw as parseAmount, formatRupiahFull } from '../utils/formatting';
 
 const { width: SW } = Dimensions.get('window');
 const TOTAL_STEPS = 4;
@@ -312,7 +312,7 @@ export default function AssessmentScreen({ navigation }) {
       {totalMonthlyIncome > 0 && (
         <View style={[styles.totalRow, { backgroundColor: colors.brandBg, borderColor: colors.brand }]}>
           <Text style={[styles.totalLabel, { color: colors.brand }]}>Total Pendapatan Bulanan</Text>
-          <Text style={[styles.totalVal, { color: colors.brand }]}>Rp {totalMonthlyIncome.toLocaleString('id')}</Text>
+          <Text style={[styles.totalVal, { color: colors.brand }]}>{formatRupiahFull(totalMonthlyIncome)}</Text>
         </View>
       )}
     </ScrollView>
@@ -374,7 +374,7 @@ export default function AssessmentScreen({ navigation }) {
       {totalMonthlyExpense > 0 && (
         <View style={[styles.totalRow, { backgroundColor: colors.expenseBg, borderColor: colors.expense }]}>
           <Text style={[styles.totalLabel, { color: colors.expense }]}>Total Pengeluaran Tetap / Bulan</Text>
-          <Text style={[styles.totalVal, { color: colors.expense }]}>Rp {totalMonthlyExpense.toLocaleString('id')}</Text>
+          <Text style={[styles.totalVal, { color: colors.expense }]}>{formatRupiahFull(totalMonthlyExpense)}</Text>
         </View>
       )}
     </ScrollView>
@@ -519,9 +519,9 @@ const makeStyles = (colors) => StyleSheet.create({
   },
   optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   optionCard: {
-    width: '47%', padding: 14, borderRadius: 14, borderWidth: 1,
+    width: '48%', padding: 14, borderRadius: 14, borderWidth: 1,
     borderColor: colors.border, backgroundColor: colors.bgCard,
-    alignItems: 'center', gap: 6,
+    alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 64,
   },
   optionLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
   radioRow: {

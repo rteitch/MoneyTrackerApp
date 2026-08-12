@@ -523,7 +523,7 @@ export default function SettingsScreen({ route }) {
   const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={styles.root}>
+    <View style={styles.root}>
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
@@ -1288,7 +1288,7 @@ export default function SettingsScreen({ route }) {
           type={statusModal.type}
         />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

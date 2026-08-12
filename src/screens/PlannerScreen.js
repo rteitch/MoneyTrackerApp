@@ -155,7 +155,7 @@ export default function PlannerScreen({ navigation, route }) {
       </View>
 
       {/* Health Score Card */}
-      <HealthScoreCard analysis={analysis} onPressSeeDetail={() => {}} />
+      <HealthScoreCard analysis={analysis} onPressSeeDetail={() => navigation.navigate('Assessment')} />
 
       {/* Key Metrics */}
       {analysis && (

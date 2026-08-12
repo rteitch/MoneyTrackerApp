@@ -22,7 +22,8 @@
     "collectCoverageFrom": [
       "src/utils/**/*.js",
       "src/db/**/*.js",
-      "src/constants/**/*.js"
+      "src/constants/**/*.js",
+      "src/components/**/*.js"
     ]
   },
   "dependencies": {

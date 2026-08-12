@@ -464,7 +464,7 @@ export default function MutasiScreen({ navigation, route }) {
   }, [transactions]);
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
+    <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
       
       <FlatList
         data={groupedTransactions}
@@ -542,7 +542,7 @@ export default function MutasiScreen({ navigation, route }) {
           )}
         </View>
       </BottomSheetModal>
-    </SafeAreaView>
+    </View>
   );
 }
 
