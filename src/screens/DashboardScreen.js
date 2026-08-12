@@ -59,6 +59,7 @@ export default function DashboardScreen({ navigation }) {
   const [filter, setFilter] = useState('all');
   const { userName, colors, currentTheme } = useAppContext();
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const [initialLoading, setInitialLoading] = useState(true);  const [refreshing, setRefreshing] = useState(false);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
@@ -368,7 +369,7 @@ export default function DashboardScreen({ navigation }) {
         )}
       </View>
     );
-  }, [userName, stats, totalHarta, accounts, filter, navigation, savingsRate, isFilterExpanded, colors, currentTheme, styles]);
+  }, [userName, stats, totalHarta, accounts, filter, navigation, savingsRate, isFilterExpanded, colors, currentTheme, styles, budgets, debtSummary, latestAssessment]);
 
   if (initialLoading) {
     return (
@@ -377,8 +378,6 @@ export default function DashboardScreen({ navigation }) {
       </View>
     );
   }
-
-  const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>

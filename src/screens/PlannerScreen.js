@@ -40,6 +40,7 @@ export default function PlannerScreen({ navigation, route }) {
   const db = useSQLiteContext();
   const { colors } = useAppContext();
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const [analysis, setAnalysis] = useState(route.params?.freshAnalysis || null);
   const [diagnoses, setDiagnoses] = useState(route.params?.freshAnalysis?.diagnoses || []);
@@ -134,7 +135,6 @@ export default function PlannerScreen({ navigation, route }) {
     );
   }
 
-  const insets = useSafeAreaInsets();
   const now = new Date();
   const monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 

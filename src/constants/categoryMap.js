@@ -62,7 +62,6 @@ export const SUBCATEGORY_GROUP_MAP = {
   // Transportation specifics (from Kebutuhan Pokok)
   'Bensin / BBM':             'transportation',
   'KRL / MRT / Busway':       'transportation',
-  'Cicilan Kendaraan':        'debt',
 
   // Debt specifics
   'Cicilan Kendaraan':        'debt',

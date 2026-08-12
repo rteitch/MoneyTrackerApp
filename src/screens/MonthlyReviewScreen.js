@@ -31,6 +31,7 @@ export default function MonthlyReviewScreen({ navigation }) {
   const db = useSQLiteContext();
   const { colors } = useAppContext();
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const [history, setHistory]           = useState([]);
   const [unlocked, setUnlocked]         = useState([]);
@@ -88,8 +89,6 @@ export default function MonthlyReviewScreen({ navigation }) {
     : 0;
 
   const currentLevel = currentMonthAss ? getHealthLevel(currentMonthAss.health_score) : null;
-
-  const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bgPrimary }]}>
