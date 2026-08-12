@@ -13,6 +13,28 @@ jest.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons',
 }));
 
+jest.mock('../../src/context/AppContext', () => ({
+  useAppContext: () => ({
+    colors: {
+      bgPrimary: '#0F172A',
+      bgCard: '#1E293B',
+      bgElevated: '#334155',
+      border: '#334155',
+      textPrimary: '#F8F9FA',
+      textSecondary: '#CBD5E1',
+      textMuted: '#878681',
+      textFaint: '#64748B',
+      brand: '#00478F',
+      brandBg: '#00478F20',
+      income: '#10B981',
+      incomeBg: '#10B98120',
+      expense: '#EF4444',
+      expenseBg: '#EF444420',
+      warning: '#FBBF24',
+    },
+  }),
+}));
+
 describe('DebtCard — Component & Action Buttons Suite', () => {
   const mockItem = {
     id: 1,
@@ -32,11 +54,11 @@ describe('DebtCard — Component & Action Buttons Suite', () => {
 
     expect(getByText('Budi Santoso')).toBeTruthy();
     expect(getByText('Pinjaman Laptop')).toBeTruthy();
-    expect(getByText('+ Cicil')).toBeTruthy();
-    expect(getByText('Lunas')).toBeTruthy();
+    expect(getByText('Bayar')).toBeTruthy();
+    expect(getByText('Lunasi')).toBeTruthy();
   });
 
-  test('TC-DCRD-002 Clicking "+ Cicil" and "Lunas" buttons calls onPay and onSettle callbacks', () => {
+  test('TC-DCRD-002 Clicking "Bayar" and "Lunasi" buttons calls onPay and onSettle callbacks', () => {
     const onPayMock = jest.fn();
     const onSettleMock = jest.fn();
 
@@ -44,10 +66,10 @@ describe('DebtCard — Component & Action Buttons Suite', () => {
       <DebtCard item={mockItem} onPress={() => {}} onPay={onPayMock} onSettle={onSettleMock} />
     );
 
-    fireEvent.press(getByText('+ Cicil'));
+    fireEvent.press(getByText('Bayar'));
     expect(onPayMock).toHaveBeenCalledWith(mockItem);
 
-    fireEvent.press(getByText('Lunas'));
+    fireEvent.press(getByText('Lunasi'));
     expect(onSettleMock).toHaveBeenCalledWith(mockItem);
   });
 });

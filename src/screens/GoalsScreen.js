@@ -48,6 +48,7 @@ const STATUS_LABELS = {
 export default function GoalsScreen({ navigation }) {
   const db = useSQLiteContext();
   const { colors } = useAppContext();
+  const insets = useSafeAreaInsets();
   const styles = makeStyles(colors);
 
   const [goals, setGoals]         = useState([]);

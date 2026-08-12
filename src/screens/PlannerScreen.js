@@ -44,7 +44,7 @@ export default function PlannerScreen({ navigation, route }) {
   const [analysis, setAnalysis] = useState(route.params?.freshAnalysis || null);
   const [diagnoses, setDiagnoses] = useState(route.params?.freshAnalysis?.diagnoses || []);
   const [history, setHistory] = useState([]);
-  const [hasProfile, setHasProfile] = useState(null); // null = unknown
+  const [hasProfile, setHasProfile] = useState(route.params?.freshAnalysis ? true : null); // null = unknown
   const [loading, setLoading] = useState(!route.params?.freshAnalysis);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState({});
@@ -91,9 +91,10 @@ export default function PlannerScreen({ navigation, route }) {
   }, [db]);
 
   useFocusEffect(useCallback(() => {
-    if (!route.params?.freshAnalysis) loadData();
-    else { setLoading(false); setHasProfile(true); }
-  }, [loadData]));
+    if (!route.params?.freshAnalysis) {
+      loadData();
+    }
+  }, [loadData, route.params?.freshAnalysis]));
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 

@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DebtCard from '../components/DebtCard';
 import StatusModal from '../components/StatusModal';
 import { useAppContext } from '../context/AppContext';

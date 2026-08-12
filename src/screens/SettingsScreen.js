@@ -16,7 +16,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import StatusModal from "../components/StatusModal";
 import { useAppActions, useAppContext } from "../context/AppContext";
 import {
@@ -72,7 +72,7 @@ export default function SettingsScreen({ route }) {
   // Generate dynamic styles based on theme
   const styles = makeStyles(colors);
 
-  const [inputUserName, setInputUserName] = useState("");
+  const [inputUserName, setInputUserName] = useState(globalUserName || "");
   const [walletName, setWalletName] = useState("");
   const [walletType, setWalletType] = useState("bank");
   const [walletColor, setWalletColor] = useState("#00478F");
@@ -142,9 +142,6 @@ export default function SettingsScreen({ route }) {
   const loadData = useCallback(
     async (cancelled = { current: false }) => {
       try {
-        if (globalUserName) {
-          setInputUserName(globalUserName);
-        }
         const [cats, accs, recurring] = await Promise.all([
           getCategories(db, catType),
           getAccounts(db),
@@ -154,12 +151,12 @@ export default function SettingsScreen({ route }) {
         setExistingCats(cats);
         setAccounts(accs);
         setRecurringList(recurring);
-        if (accs.length > 0 && !recAccountId) setRecAccountId(accs[0].id);
+        if (accs.length > 0) setRecAccountId(prev => prev || accs[0].id);
       } catch (e) {
         console.error("Settings loadData error:", e);
       }
     },
-    [db, catType, globalUserName],
+    [db, catType],
   );
 
   useFocusEffect(
@@ -169,7 +166,7 @@ export default function SettingsScreen({ route }) {
       return () => {
         cancelled.current = true;
       };
-    }, [loadData]),
+    }, [catType]),
   );
 
   const onRefresh = useCallback(async () => {

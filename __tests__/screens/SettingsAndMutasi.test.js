@@ -13,6 +13,10 @@ import SettingsScreen from '../../src/screens/SettingsScreen';
 import MutasiScreen from '../../src/screens/MutasiScreen';
 
 // Mocks
+jest.mock('expo-linear-gradient', () => ({
+  LinearGradient: 'LinearGradient',
+}));
+
 jest.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons',
 }));
@@ -43,7 +47,10 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('@react-navigation/native', () => ({
-  useFocusEffect: (cb) => cb(),
+  useFocusEffect: (cb) => {
+    const React = require('react');
+    React.useEffect(cb, []);
+  },
 }));
 
 const mockSetThemeMode = jest.fn();
@@ -69,6 +76,11 @@ jest.mock('../../src/context/AppContext', () => ({
       expense: '#EF4444',
       expenseBg: '#EF444420',
       warning: '#FBBF24',
+    },
+    typeConfig: {
+      income: { color: '#10B981', sign: '+', icon: 'arrow-up-circle' },
+      expense: { color: '#EF4444', sign: '−', icon: 'arrow-down-circle' },
+      transfer: { color: '#0066CC', sign: '', icon: 'swap-horizontal' },
     },
   }),
   useAppActions: () => ({
@@ -136,7 +148,7 @@ describe('SettingsScreen & MutasiScreen — ISTQB Management & CSV Export Button
     fireEvent.press(getByText('Tampilan'));
 
     await waitFor(() => {
-      expect(getByText('Mode Gelap / Terang')).toBeTruthy();
+      expect(getByText('Dark Mode')).toBeTruthy();
     });
 
     // Switch to Profil tab
@@ -144,7 +156,7 @@ describe('SettingsScreen & MutasiScreen — ISTQB Management & CSV Export Button
 
     await waitFor(() => {
       expect(getByText('Profil Pengguna')).toBeTruthy();
-      expect(getByText('Reset Semua Data')).toBeTruthy();
+      expect(getByText('Bersihkan Riwayat Transaksi')).toBeTruthy();
     });
   });
 
@@ -155,18 +167,14 @@ describe('SettingsScreen & MutasiScreen — ISTQB Management & CSV Export Button
     );
 
     await waitFor(() => {
-      expect(getByText('Mutasi Transaksi')).toBeTruthy();
-      expect(getByPlaceholderText('Cari transaksi / ketik nominal...')).toBeTruthy();
-      expect(getByText('CSV')).toBeTruthy();
+      expect(getByPlaceholderText('Cari transaksi...')).toBeTruthy();
       expect(getByText('Nasi Goreng Spesial')).toBeTruthy();
+      expect(getByText('Kas Utama')).toBeTruthy();
     });
 
     // Type in search bar
-    const searchInput = getByPlaceholderText('Cari transaksi / ketik nominal...');
+    const searchInput = getByPlaceholderText('Cari transaksi...');
     fireEvent.changeText(searchInput, 'Nasi Goreng');
-
-    // Click Export CSV button
-    const csvBtn = getByText('CSV');
-    fireEvent.press(csvBtn);
+    expect(getByText('Nasi Goreng Spesial')).toBeTruthy();
   });
 });

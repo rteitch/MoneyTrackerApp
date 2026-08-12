@@ -37,8 +37,10 @@ export function formatRupiah(num) {
  * Jika >= 1 Miliar, gunakan singkatan agar UI tidak berantakan (seperti di screenshot).
  */
 export function formatRupiahFull(num) {
-  const abs = Math.abs(num || 0);
-  const sign = (num || 0) < 0 ? '-' : '';
+  if (num === null || num === undefined || isNaN(num)) return 'Rp 0';
+  const val = Number(num) || 0;
+  const abs = Math.abs(val);
+  const sign = val < 0 ? '-' : '';
 
   if (abs >= 1_000_000_000_000) {
     const value = (abs / 1_000_000_000_000).toLocaleString('id-ID', {

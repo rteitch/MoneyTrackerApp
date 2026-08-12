@@ -18,7 +18,7 @@ import {
   RefreshControl,
   StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import BottomSheetModal from "../components/BottomSheetModal";
 import TransactionCard from "../components/TransactionCard";
@@ -131,19 +131,16 @@ export default function MutasiScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-    }, [loadData])
+    }, [db])
   );
 
-  // Sync route params when navigation occurs
   useEffect(() => {
     if (route?.params?.accountId) {
       setAccountFilter(route.params.accountId);
       setAccountName(route.params.accountName || "Dompet");
-      setPeriodFilter("all"); // Default to 'all' saat buka dari dashboard agar data muncul
-      // Clear params after consuming so it doesn't re-trigger
-      navigation.setParams({ accountId: undefined, accountName: undefined });
+      setPeriodFilter("all");
     }
-  }, [route?.params?.accountId, route?.params?.accountName, navigation]);
+  }, [route?.params?.accountId, route?.params?.accountName]);
 
   const onRefresh = () => {
     setRefreshing(true);
